@@ -2,6 +2,24 @@ import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { registrarMenusContexto } from "./menu/options.js";
 import { sincronizarTodosHuds, METADATA_HUD_KEY, METADATA_BTN_FICHA_KEY } from "./painel/fichas/token-hud.js";
 
+const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, "/");
+
+const _origOpen = OBR.popover.open;
+OBR.popover.open = (config) => {
+  if (config.url && config.url.startsWith("/")) {
+    config.url = new URL("." + config.url, baseUrl).href;
+  }
+  return _origOpen(config);
+};
+
+const _origFetch = window.fetch;
+window.fetch = (input, init) => {
+  if (typeof input === "string" && input.startsWith("/")) {
+    input = new URL("." + input, baseUrl).href;
+  }
+  return _origFetch(input, init);
+};
+
 const ID_PAINEL = "solaria-painel-inferior-direito";
 const ID_QUICK_STAT = "solaria-quick-stat-editor";
 let aberto = false;

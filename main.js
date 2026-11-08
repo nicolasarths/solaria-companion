@@ -45,7 +45,7 @@ export async function abrirOuFocarPainel() {
 
 async function inicializarHudsAoCarregarCena() {
   try {
-    const res = await fetch("/api/modulos");
+const res = await fetch("/api/modulos");
     const modulos = await res.json();
     let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
 

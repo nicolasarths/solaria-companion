@@ -1,0 +1,8 @@
+{
+  "id": "guarda-1",
+  "nome": "Guarda de Solaria",
+  "tag": "NPC",
+  "visivelPlayer": true,
+  "desc": "HP: 25 | Defesa: 14 | Lança Solar (1d8+2).",
+  "segredoGM": "Subornável por 15 moedas de ouro."
+}

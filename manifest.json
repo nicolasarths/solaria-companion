@@ -1,0 +1,15 @@
+{
+  "manifest_version": 1,
+  "name": "Solaria Companion",
+  "version": "1.0.0",
+  "description": "Extensão para Solaria no Owlbear Rodeo",
+  "author": "Nicolas Arths",
+  "icon": "/vite.svg",
+  "action": {
+    "title": "Solaria Companion",
+    "icon": "/favicon.svg",
+    "popover": "/index.html",
+    "height": 500,
+    "width": 360
+  }
+}

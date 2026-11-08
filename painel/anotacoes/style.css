@@ -1,0 +1,409 @@
+.notes-module-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 12px;
+  font-family: inherit;
+  color: #c0caf5;
+  overflow: hidden;
+}
+
+/* Barra Superior */
+.notes-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 4px;
+}
+
+.notes-topbar-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+  color: #7982a9;
+}
+
+.btn-nova-nota {
+  background: linear-gradient(135deg, #7aa2f7, #bb9af7);
+  color: #16161e;
+  border: none;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.btn-nova-nota:hover { opacity: 0.92; }
+.btn-nova-nota:active { transform: scale(0.97); }
+
+/* Lista com Scroll das Notas */
+.notes-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.notes-cards-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.notes-cards-list::-webkit-scrollbar-thumb {
+  background: #2f354d;
+  border-radius: 4px;
+}
+
+/* Cartão Individual de Anotação (Sem overflow: hidden para permitir popups livres) */
+.note-card {
+  background: #16161e;
+  border: 1px solid #2f354d;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.2s;
+  position: relative;
+}
+
+.note-card:focus-within {
+  border-color: #7aa2f7;
+}
+
+/* Cabeçalho do Cartão */
+.note-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #1a1b26;
+  border-bottom: 1px solid #24283b;
+  border-radius: 7px 7px 0 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.note-card.is-collapsed .note-card-header {
+  border-bottom: none;
+  border-radius: 7px;
+}
+
+.btn-collapse-arrow {
+  background: transparent;
+  border: none;
+  color: #7aa2f7;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note-card.is-collapsed .btn-collapse-arrow {
+  transform: rotate(-90deg);
+}
+
+.note-title-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: #c0caf5;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  padding: 2px 4px;
+  transition: border-color 0.2s;
+  cursor: text;
+}
+
+.note-title-input:focus {
+  border-bottom-color: #7aa2f7;
+  background: #16161e;
+}
+
+.note-save-badge {
+  font-size: 10px;
+  color: #9ece6a;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.btn-delete-note {
+  background: transparent;
+  border: none;
+  color: #565f89;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.btn-delete-note:hover {
+  color: #f7768e;
+  background: rgba(247, 118, 142, 0.15);
+}
+
+.btn-delete-note.confirm-delete {
+  background: #f7768e;
+  color: #16161e;
+  font-weight: 700;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  animation: pulse-delete 0.2s ease-in-out;
+}
+
+.btn-delete-note.confirm-delete:hover {
+  background: #f55373;
+  color: #ffffff;
+}
+
+@keyframes pulse-delete {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* Corpo Colapsável do Cartão */
+.note-card-body {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.note-card.is-collapsed .note-card-body {
+  display: none;
+}
+
+/* Editor Universal Integrado */
+.solaria-editor-container {
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.solaria-editor-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 5px 8px;
+  background: #13141c;
+  border-bottom: 1px solid #24283b;
+  align-items: center;
+}
+
+.ed-btn {
+  background: transparent;
+  border: none;
+  color: #a9b1d6;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ed-btn:hover {
+  background: #24283b;
+  color: #fff;
+}
+
+.ed-divider {
+  width: 1px;
+  height: 14px;
+  background: #2f354d;
+  margin: 0 3px;
+}
+
+.solaria-editor-body {
+  padding: 10px 12px;
+  color: #c0caf5;
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+  min-height: 90px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.solaria-editor-body[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: #565f89;
+  pointer-events: none;
+}
+
+.solaria-editor-body ul {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+/* Checklist Interativo */
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+.todo-check {
+  cursor: pointer;
+  margin-top: 3px;
+  accent-color: #7aa2f7;
+}
+
+.todo-item.completed {
+  text-decoration: line-through;
+  color: #565f89;
+}
+
+.todo-item.completed span {
+  text-decoration: line-through;
+}
+
+/* Barra de Anexos no Rodapé de cada Nota */
+.note-attachments-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #14161f;
+  border-top: 1px solid #24283b;
+  border-radius: 0 0 7px 7px;
+  position: relative;
+}
+
+.note-attach-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #565f89;
+  user-select: none;
+}
+
+.note-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.note-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #1f2335;
+  border: 1px solid #3b4261;
+  color: #bb9af7;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.note-chip:hover {
+  background: #24283b;
+  border-color: #bb9af7;
+  color: #c0caf5;
+  transform: translateY(-1px);
+}
+
+.note-chip .chip-remove {
+  font-size: 12px;
+  color: #7982a9;
+  line-height: 1;
+  border-radius: 50%;
+  padding: 1px 3px;
+  transition: color 0.15s;
+}
+
+.note-chip .chip-remove:hover {
+  color: #f7768e;
+}
+
+/* Wrapper do Dropdown */
+.attach-dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.btn-add-chip-trigger {
+  background: transparent;
+  border: 1px dashed #414868;
+  color: #7aa2f7;
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-add-chip-trigger:hover {
+  border-color: #7aa2f7;
+  background: rgba(122, 162, 247, 0.1);
+  color: #fff;
+}
+
+/* Popup Menuzinho: Agora abre para CIMA (bottom: calc(100% + 6px)) e fica sempre visível */
+.attach-popup-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  top: auto;
+  left: 0;
+  background: #1a1b26;
+  border: 1px solid #3b4261;
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.55);
+  border-radius: 6px;
+  min-width: 170px;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  padding: 4px;
+}
+
+.attach-popup-menu.is-open {
+  display: flex;
+}
+
+.popup-item-btn {
+  background: transparent;
+  border: none;
+  color: #c0caf5;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.popup-item-btn:hover {
+  background: #24283b;
+  color: #7aa2f7;
+}
+
+.popup-item-empty {
+  font-size: 10px;
+  color: #565f89;
+  padding: 6px 8px;
+  text-align: center;
+}

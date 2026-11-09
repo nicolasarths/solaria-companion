@@ -8,6 +8,7 @@ import {
   METADATA_BTN_FICHA_KEY 
 } from "./painel/fichas/token-hud.js";
 import { configurarInterfaceNuvem } from "./core/cloud.js";
+import { SolariaSync } from "./core/sync.js";
 
 const ID_PAINEL = "solaria-painel-inferior-direito";
 const ID_QUICK_STAT = "solaria-quick-stat-editor";
@@ -98,7 +99,6 @@ OBR.onReady(async () => {
 
   configurarInterfaceNuvem();
 
-  // Limpeza de Cache Local
   const btnLimparCache = document.getElementById("btn-limpar-cache");
   const cacheStatus = document.getElementById("cache-status");
   if (btnLimparCache) {
@@ -119,7 +119,6 @@ OBR.onReady(async () => {
     });
   }
 
-  // Reset de Sala (Owlbear Room Metadata e HUDs)
   const btnLimparSala = document.getElementById("btn-limpar-sala");
   if (btnLimparSala) {
     btnLimparSala.addEventListener("click", async () => {
@@ -175,7 +174,7 @@ OBR.onReady(async () => {
     }
   });
 
-  // Ouvintes Globais em Segundo Plano
+  // Ouvintes Globais em Segundo Plano com suporte a Edição de Jogador
   OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
     const fichaAtualizada = e.data;
     if (!fichaAtualizada || !fichaAtualizada.id) return;
@@ -188,7 +187,12 @@ OBR.onReady(async () => {
       fichas.unshift(fichaAtualizada);
     }
     localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
-    await atualizarHudToken(fichaAtualizada);
+
+    const role = await OBR.player.getRole();
+    if (role === "GM") {
+      await atualizarHudToken(fichaAtualizada);
+      await SolariaSync.sincronizarFichasComSala(fichas);
+    }
   });
 
   OBR.broadcast.onMessage("solaria/ficha-excluida", async (e) => {
@@ -200,6 +204,11 @@ OBR.onReady(async () => {
     if (f?.tokenId) await removerHudToken(f.tokenId, idExcluir);
     fichas = fichas.filter(item => item.id !== idExcluir);
     localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
+
+    const role = await OBR.player.getRole();
+    if (role === "GM") {
+      await SolariaSync.sincronizarFichasComSala(fichas);
+    }
   });
 
   OBR.broadcast.onMessage("solaria/ficha-stat-atualizado", async (e) => {
@@ -207,10 +216,14 @@ OBR.onReady(async () => {
     if (!sheetId) return;
     const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
     const f = fichas.find(item => item.id === sheetId);
-    if (f) await atualizarHudToken(f);
+    const role = await OBR.player.getRole();
+    if (role === "GM" && f) {
+      await atualizarHudToken(f);
+      await SolariaSync.sincronizarFichasComSala(fichas);
+    }
   });
 
-  OBR.broadcast.onMessage("solaria/nota-sync", (e) => {
+  OBR.broadcast.onMessage("solaria/nota-sync", async (e) => {
     const notaAtualizada = e.data;
     if (!notaAtualizada || !notaAtualizada.id) return;
 
@@ -222,15 +235,25 @@ OBR.onReady(async () => {
       notas.unshift(notaAtualizada);
     }
     localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
+
+    const role = await OBR.player.getRole();
+    if (role === "GM") {
+      await SolariaSync.sincronizarNotasComSala(notas);
+    }
   });
 
-  OBR.broadcast.onMessage("solaria/nota-excluida", (e) => {
+  OBR.broadcast.onMessage("solaria/nota-excluida", async (e) => {
     const idExcluir = e.data;
     if (!idExcluir) return;
 
     let notas = JSON.parse(localStorage.getItem("solaria_notas_multiplas") || "[]");
     notas = notas.filter(n => n.id !== idExcluir);
     localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
+
+    const role = await OBR.player.getRole();
+    if (role === "GM") {
+      await SolariaSync.sincronizarNotasComSala(notas);
+    }
   });
 
   // Interação com Elementos e Tokens no Grid

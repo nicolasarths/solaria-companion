@@ -19,8 +19,7 @@ export function criarGerenciadorNotas(containerCards, Estado) {
     containerCards.innerHTML = "";
     const isGM = Estado.role === "GM";
 
-    // Filtra as notas: Mestre vê todas; Jogador vê apenas as visíveis
-    const notasFiltradas = NotesStore.notas.filter(n => isGM || n.visivelPlayer === true);
+    const notasFiltradas = NotesStore.notas.filter(n => isGM || n.visivelPlayer !== false);
 
     if (!notasFiltradas.length) {
       containerCards.innerHTML = `
@@ -48,13 +47,12 @@ export function criarGerenciadorNotas(containerCards, Estado) {
           estadosAbertura[nota.id] = estaAberta;
           salvarEstados();
         },
-        onVisibilidadeChange: async () => {
-          const novaVisibilidade = !nota.visivelPlayer;
-          NotesStore.atualizarNota(nota.id, { visivelPlayer: novaVisibilidade });
-          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || { ...nota, visivelPlayer: novaVisibilidade };
+        onVisibilidadeChange: async (novasPermissoes) => {
+          NotesStore.atualizarNota(nota.id, novasPermissoes);
+          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || { ...nota, ...novasPermissoes };
 
           try {
-            if (novaVisibilidade) {
+            if (notaAtualizada.visivelPlayer !== false) {
               await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
             } else {
               await OBR.broadcast.sendMessage("solaria/nota-excluida", nota.id);
@@ -64,31 +62,28 @@ export function criarGerenciadorNotas(containerCards, Estado) {
           renderizar();
         },
         onTituloChange: async (novoTitulo) => {
-          NotesStore.atualizarNota(nota.id, { titulo: novoTitulo });
+          const isGM = Estado.role === "GM";
+          NotesStore.atualizarNota(nota.id, { titulo: novoTitulo }, isGM);
           const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
-          if (notaAtualizada.visivelPlayer) {
-            try {
-              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
-            } catch (_) {}
-          }
+          try {
+            await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+          } catch (_) {}
         },
         onConteudoChange: async (novoConteudo) => {
-          NotesStore.atualizarNota(nota.id, { conteudo: novoConteudo });
+          const isGM = Estado.role === "GM";
+          NotesStore.atualizarNota(nota.id, { conteudo: novoConteudo }, isGM);
           const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
-          if (notaAtualizada.visivelPlayer) {
-            try {
-              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
-            } catch (_) {}
-          }
+          try {
+            await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+          } catch (_) {}
         },
         onAnexosChange: async (novosAnexos) => {
-          NotesStore.atualizarNota(nota.id, { anexos: novosAnexos });
+          const isGM = Estado.role === "GM";
+          NotesStore.atualizarNota(nota.id, { anexos: novosAnexos }, isGM);
           const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
-          if (notaAtualizada.visivelPlayer) {
-            try {
-              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
-            } catch (_) {}
-          }
+          try {
+            await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+          } catch (_) {}
         },
         onExcluir: async () => {
           const idExcluir = nota.id;

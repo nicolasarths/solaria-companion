@@ -2772,6 +2772,7 @@ export function iniciarOuvintesOwlbear(onFocarFicha, onCriarFicha) {
     import { calcularNovoStat } from "./calc.js";
     import { normalizarStats } from "./stats.js";
     import { atualizarHudToken } from "./token-hud.js";
+    import { SolariaSync } from "../../core/sync.js";
 
     const params = new URLSearchParams(window.location.search);
     const sheetId = params.get("sheetId");
@@ -2799,8 +2800,11 @@ export function iniciarOuvintesOwlbear(onFocarFicha, onCriarFicha) {
       }, 30);
     }
 
+    let salvando = false;
     async function salvarEFechar() {
-      if (!ficha) return;
+      if (!ficha || salvando) return;
+      salvando = true;
+
       const antigoAtual = ficha.stats[statId].atual;
       const antigoMax = ficha.stats[statId].max;
 
@@ -2809,18 +2813,22 @@ export function iniciarOuvintesOwlbear(onFocarFicha, onCriarFicha) {
 
       localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
 
-      OBR.onReady(async () => {
+      try {
         await atualizarHudToken(ficha);
+        await SolariaSync.sincronizarFichasComSala(fichas);
         await OBR.broadcast.sendMessage("solaria/ficha-stat-atualizado", { sheetId });
+      } catch (_) {}
+
+      try {
         await OBR.popover.close("solaria-quick-stat-editor");
-      });
+      } catch (_) {}
     }
 
     [inpAtual, inpMax].forEach(inp => {
       inp.addEventListener("keydown", (e) => {
         if (e.key === "Enter") salvarEFechar();
         if (e.key === "Escape") {
-          OBR.onReady(() => OBR.popover.close("solaria-quick-stat-editor"));
+          OBR.popover.close("solaria-quick-stat-editor");
         }
       });
     });
@@ -3802,7 +3810,7 @@ export async function sincronizarTodosHuds(fichas = []) {
       position: relative;
     }
 
-    /* Alças de Redimensionamento (Arrastar) */
+    /* Alças de Redimensionamento */
     .resize-handle-top {
       position: absolute;
       top: 0;
@@ -3850,6 +3858,7 @@ export async function sincronizarTodosHuds(fichas = []) {
       align-items: center;
       border-bottom: 1px solid var(--border);
       user-select: none;
+      gap: 6px;
     }
     .header-left {
       display: flex;
@@ -3879,11 +3888,12 @@ export async function sincronizarTodosHuds(fichas = []) {
       color: var(--text-muted);
       border-radius: 4px;
       font-size: 11px;
-      padding: 2px 6px;
+      padding: 3px 7px;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 3px;
+      transition: color 0.15s, border-color 0.15s;
     }
     .btn-size-preset:hover {
       color: #fff;
@@ -3966,7 +3976,6 @@ export async function sincronizarTodosHuds(fichas = []) {
   </style>
 </head>
 <body>
-  <!-- Alças de Redimensionamento-->
   <div id="resize-top" class="resize-handle-top" title="Arraste para redimensionar verticalmente"></div>
   <div id="resize-left" class="resize-handle-left" title="Arraste para redimensionar horizontalmente"></div>
   <div id="resize-corner" class="resize-handle-corner" title="Arraste o canto para redimensionar"></div>
@@ -3977,6 +3986,9 @@ export async function sincronizarTodosHuds(fichas = []) {
       <button id="btn-toggle-size" class="btn-size-preset" title="Alternar Tamanho Predefinido">📐 Médio</button>
     </div>
     <div class="header-actions">
+      <!-- Botões de limpeza de armazenamento presentes no cabeçalho do painel -->
+      <button id="btn-limpar-cache-painel" class="btn-size-preset" title="Limpar Cache Local deste navegador e recarregar">🧹 Cache</button>
+      <button id="btn-reset-sala-painel" class="btn-size-preset" style="color:var(--danger); border-color:rgba(247,118,142,0.4); display:none;" title="Zerar Fichas e Notas da SALA do Owlbear (Apenas GM)">🗑️ Sala</button>
       <span id="role-badge" class="role-badge role-gm">Visão: Mestre (GM)</span>
     </div>
   </header>
@@ -3993,23 +4005,11 @@ import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { SolariaSync } from "../core/sync.js";
 import { SheetStore } from "./fichas/store.js";
 import { NotesStore } from "./anotacoes/notes-store.js";
+import { METADATA_HUD_KEY, METADATA_BTN_FICHA_KEY } from "./fichas/token-hud.js";
 
-export function configurarCargos(realRole) {
-  Estado.realRole = realRole;
-  definirVisualizacao(realRole);
-
-  // Se for o Mestre, garante que as fichas e notas salvas no seu PC sejam enviadas para a sala
-  if (realRole === "GM") {
-    SheetStore.carregar();
-    NotesStore.carregar();
-    SolariaSync.sincronizarFichasComSala(SheetStore.fichas);
-    SolariaSync.sincronizarNotasComSala(NotesStore.notas);
-  }
-}
 const ID_PAINEL = "solaria-painel-inferior-direito";
 
 export const Estado = {
-  // Padrão seguro inicial: sempre PLAYER até confirmação do SDK
   realRole: "PLAYER",
   viewRole: "PLAYER",
   get role() {
@@ -4103,6 +4103,56 @@ function configurarArrasto() {
   });
 }
 
+function configurarBotoesCachePainel() {
+  const btnLimparCache = document.getElementById("btn-limpar-cache-painel");
+  const btnResetSala = document.getElementById("btn-reset-sala-painel");
+
+  if (btnLimparCache) {
+    btnLimparCache.addEventListener("click", () => {
+      const ok = window.confirm("Deseja apagar os dados locais do Solaria salvos neste navegador e recarregar?");
+      if (!ok) return;
+
+      Object.keys(localStorage)
+        .filter(k => k.startsWith("solaria_"))
+        .forEach(k => localStorage.removeItem(k));
+
+      try { OBR.notification.show("Armazenamento local limpo! 🧹"); } catch (_) {}
+      setTimeout(() => location.reload(), 300);
+    });
+  }
+
+  if (btnResetSala) {
+    btnResetSala.addEventListener("click", async () => {
+      const ok = window.confirm("ATENÇÃO: Deseja apagar todas as fichas e notas da SALA do Owlbear Rodeo? (Ação irreversível)");
+      if (!ok) return;
+
+      try {
+        const role = await OBR.player.getRole();
+        if (role !== "GM") {
+          alert("Apenas o Mestre pode resetar os dados da sala.");
+          return;
+        }
+
+        await OBR.room.setMetadata({
+          "solaria/sync_fichas": [],
+          "solaria/sync_notas": []
+        });
+
+        const itens = await OBR.scene.items.getItems();
+        const huds = itens.filter(i => i.metadata?.[METADATA_HUD_KEY] || i.metadata?.[METADATA_BTN_FICHA_KEY] || i.id.startsWith("solaria_hud_"));
+        if (huds.length > 0) {
+          await OBR.scene.items.deleteItems(huds.map(h => h.id));
+        }
+
+        try { OBR.notification.show("Sala do Owlbear e HUDs resetados! 🧹"); } catch (_) {}
+        setTimeout(() => location.reload(), 300);
+      } catch (err) {
+        alert("Erro ao resetar sala: " + err.message);
+      }
+    });
+  }
+}
+
 export async function carregarPainel() {
   const res = await fetch("../modulos.json");
   Estado.modulos = await res.json();
@@ -4194,6 +4244,11 @@ export function definirVisualizacao(role) {
     Estado.viewRole = role;
   }
 
+  const btnResetSala = document.getElementById("btn-reset-sala-painel");
+  if (btnResetSala) {
+    btnResetSala.style.display = Estado.realRole === "GM" ? "flex" : "none";
+  }
+
   if (badge) {
     if (Estado.realRole !== "GM") {
       badge.textContent = "Visão: Jogador";
@@ -4213,6 +4268,18 @@ export function definirVisualizacao(role) {
   carregarPainel();
 }
 
+export function configurarCargos(realRole) {
+  Estado.realRole = realRole;
+  definirVisualizacao(realRole);
+
+  if (realRole === "GM") {
+    SheetStore.carregar();
+    NotesStore.carregar();
+    SolariaSync.sincronizarFichasComSala(SheetStore.fichas);
+    SolariaSync.sincronizarNotasComSala(NotesStore.notas);
+  }
+}
+
 export const definirCargo = configurarCargos;
 
 if (badge) {
@@ -4228,17 +4295,17 @@ OBR.onReady(async () => {
   if (!inicializado) {
     inicializado = true;
     configurarArrasto();
+    configurarBotoesCachePainel();
     const role = await OBR.player.getRole();
     configurarCargos(role);
   }
 });
 
-// Fallback seguro: se não estiver dentro de um iframe do Owlbear (teste direto em aba avulsa),
-// libera GM apenas se for janela raiz (window.self === window.top). Dentro do Owlbear, mantém PLAYER.
 setTimeout(() => {
   if (!inicializado) {
     inicializado = true;
     configurarArrasto();
+    configurarBotoesCachePainel();
     const isStandalone = window.self === window.top;
     configurarCargos(isStandalone ? "GM" : "PLAYER");
   }

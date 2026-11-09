@@ -1,5 +1,17 @@
 import { criarRichEditor } from "../../ui/rich-editor.js";
 
+function obterIconePermissaoNota(nota) {
+  if (nota.visivelPlayer === false) return "🔒";
+  if (!nota.editavelPlayer) return "👁️";
+  return "✍️";
+}
+
+function obterTituloPermissaoNota(nota) {
+  if (nota.visivelPlayer === false) return "Status: Oculto para jogadores (Clique para liberar Leitura)";
+  if (!nota.editavelPlayer) return "Status: Jogador pode Ver apenas (Clique para liberar Edição)";
+  return "Status: Jogador pode Ver e Editar (Clique para Ocultar)";
+}
+
 export function criarCardNota({
   nota,
   role,
@@ -14,7 +26,8 @@ export function criarCardNota({
   onNavegarFicha
 }) {
   const isGM = role === "GM";
-  const isVisivel = nota.visivelPlayer === true;
+  const isVisivel = nota.visivelPlayer !== false;
+  const isEditavel = isGM || nota.editavelPlayer === true;
 
   const card = document.createElement("div");
   card.className = `note-card ${aberta ? "" : "is-collapsed"}`;
@@ -23,15 +36,15 @@ export function criarCardNota({
   card.innerHTML = `
     <div class="note-card-header">
       <button type="button" class="btn-collapse-arrow" title="Colapsar / Expandir">▼</button>
-      <input type="text" class="note-title-input" value="${nota.titulo || "Sem Título"}" placeholder="Título da anotação..." ${!isGM ? "readonly" : ""}>
+      <input type="text" class="note-title-input" value="${nota.titulo || "Sem Título"}" placeholder="Título da anotação..." ${!isEditavel ? "readonly" : ""}>
       
       ${isGM ? `
-        <button type="button" class="btn-toggle-visibilidade" title="${isVisivel ? "Visível para jogadores (clique para ocultar)" : "Oculto para jogadores (clique para revelar)"}" style="background:transparent; border:none; cursor:pointer; font-size:12px; margin:0 4px; padding:2px;">
-          ${isVisivel ? "👁️" : "🔒"}
+        <button type="button" class="btn-toggle-permissao-nota" title="${obterTituloPermissaoNota(nota)}" style="background:transparent; border:none; cursor:pointer; font-size:12px; margin:0 4px; padding:2px;">
+          ${obterIconePermissaoNota(nota)}
         </button>
-      ` : ""}
+      ` : (nota.editavelPlayer ? `<span title="Você pode editar esta anotação" style="font-size:11px; margin:0 4px;">✍️</span>` : "")}
       
-      <span class="note-save-badge">${isGM ? "● Guardado" : ""}</span>
+      <span class="note-save-badge">${isEditavel ? "● Guardado" : ""}</span>
       ${isGM ? `<button type="button" class="btn-delete-note" title="Clique duas vezes para excluir">✕</button>` : ""}
     </div>
     <div class="note-card-body">
@@ -39,7 +52,7 @@ export function criarCardNota({
       <div class="note-attachments-bar">
         <span class="note-attach-label">📎 Anexos:</span>
         <div class="note-chips-container"></div>
-        ${isGM ? `
+        ${isEditavel ? `
           <div class="attach-dropdown-wrapper">
             <button type="button" class="btn-add-chip-trigger">+ Anexar Ficha</button>
             <div class="attach-popup-menu"></div>
@@ -57,13 +70,13 @@ export function criarCardNota({
   const chipsContainer = card.querySelector(".note-chips-container");
   const triggerBtn = card.querySelector(".btn-add-chip-trigger");
   const popupMenu = card.querySelector(".attach-popup-menu");
-  const btnVisibilidade = card.querySelector(".btn-toggle-visibilidade");
+  const btnPermissao = card.querySelector(".btn-toggle-permissao-nota");
 
   const editor = criarRichEditor({
-    placeholder: "Registe pistas, ideias, regras ou tarefas...",
+    placeholder: isEditavel ? "Registe pistas, ideias, regras ou tarefas..." : "Anotação em modo leitura...",
     valorInicial: nota.conteudo,
     onSalvar: (novoConteudo) => {
-      if (!isGM) return;
+      if (!isEditavel) return;
       saveBadge.textContent = "● Guardado";
       saveBadge.style.color = "#9ece6a";
       if (typeof onConteudoChange === "function") {
@@ -73,8 +86,7 @@ export function criarCardNota({
   });
   editorSlot.appendChild(editor.elemento);
 
-  // Travar editor para jogadores
-  if (!isGM) {
+  if (!isEditavel) {
     const editorBody = editorSlot.querySelector("[contenteditable]");
     if (editorBody) editorBody.setAttribute("contenteditable", "false");
     const toolbar = editorSlot.querySelector(".solaria-editor-toolbar");
@@ -90,11 +102,11 @@ export function criarCardNota({
       chip.className = "note-chip";
       chip.innerHTML = `
         <span class="chip-text">${anexo.nome}</span>
-        ${isGM ? `<span class="chip-remove" title="Desanexar">×</span>` : ""}
+        ${isEditavel ? `<span class="chip-remove" title="Desanexar">×</span>` : ""}
       `;
 
       chip.addEventListener("click", (e) => {
-        if (isGM && e.target.classList.contains("chip-remove")) {
+        if (isEditavel && e.target.classList.contains("chip-remove")) {
           e.stopPropagation();
           anexos.splice(idx, 1);
           nota.anexos = anexos;
@@ -144,7 +156,7 @@ export function criarCardNota({
     });
   }
 
-  if (isGM && triggerBtn) {
+  if (isEditavel && triggerBtn) {
     triggerBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -170,7 +182,7 @@ export function criarCardNota({
       e.target === titleInput || 
       e.target === deleteBtn || 
       deleteBtn?.contains(e.target) || 
-      e.target.closest(".btn-toggle-visibilidade")
+      e.target.closest(".btn-toggle-permissao-nota")
     ) return;
     
     const isCollapsed = card.classList.toggle("is-collapsed");
@@ -178,27 +190,26 @@ export function criarCardNota({
   });
 
   if (isGM) {
-    btnVisibilidade?.addEventListener("click", (e) => {
+    btnPermissao?.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (typeof onVisibilidadeChange === "function") onVisibilidadeChange();
-    });
 
-    let debounceTimer;
-    titleInput.addEventListener("input", (e) => {
-      saveBadge.textContent = "● A guardar...";
-      saveBadge.style.color = "#e0af68";
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        const novoTitulo = e.target.value.trim() || "Sem Título";
-        saveBadge.textContent = "● Guardado";
-        saveBadge.style.color = "#9ece6a";
-        if (typeof onTituloChange === "function") onTituloChange(novoTitulo);
-      }, 400);
+      let novasPermissoes = {};
+      if (nota.visivelPlayer === false) {
+        novasPermissoes = { visivelPlayer: true, editavelPlayer: false };
+      } else if (!nota.editavelPlayer) {
+        novasPermissoes = { visivelPlayer: true, editavelPlayer: true };
+      } else {
+        novasPermissoes = { visivelPlayer: false, editavelPlayer: false };
+      }
+
+      if (typeof onVisibilidadeChange === "function") {
+        onVisibilidadeChange(novasPermissoes);
+      }
     });
 
     let resetDeleteTimer = null;
-    deleteBtn.addEventListener("click", (e) => {
+    deleteBtn?.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (deleteBtn.classList.contains("confirm-delete")) {
@@ -214,6 +225,21 @@ export function criarCardNota({
         deleteBtn.classList.remove("confirm-delete");
         deleteBtn.textContent = "✕";
       }, 3000);
+    });
+  }
+
+  if (isEditavel) {
+    let debounceTimer;
+    titleInput.addEventListener("input", (e) => {
+      saveBadge.textContent = "● A guardar...";
+      saveBadge.style.color = "#e0af68";
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const novoTitulo = e.target.value.trim() || "Sem Título";
+        saveBadge.textContent = "● Guardado";
+        saveBadge.style.color = "#9ece6a";
+        if (typeof onTituloChange === "function") onTituloChange(novoTitulo);
+      }, 400);
     });
   }
 

@@ -28,7 +28,6 @@ export function render(container, Estado) {
     }
   });
 
-  // Atualiza a visualização caso o painel esteja aberto no momento da transmissão
   OBR.broadcast.onMessage("solaria/ficha-sync", () => {
     SheetStore.carregar();
     renderLista();
@@ -65,6 +64,7 @@ export function render(container, Estado) {
       nome: tokenNome,
       tag: "NPC",
       visivelPlayer: true,
+      editavelPlayer: false,
       stats: { pv: "20", pm: "10", rm: "0", cd: "10", atk: "+0" },
       historico: "",
       habilidades: [],
@@ -135,7 +135,8 @@ export function render(container, Estado) {
         const card = criarElementoCard(f, Estado.role, {
           onEditar: (item) => abrirForm(item),
           onAtualizar: (fichaAtualizada) => { 
-            SheetStore.salvar(); 
+            const isGM = Estado.role === "GM";
+            SheetStore.salvar(isGM); 
             if (fichaAtualizada) OBR.broadcast.sendMessage("solaria/ficha-sync", fichaAtualizada);
             desenhar(); 
           }
@@ -143,12 +144,19 @@ export function render(container, Estado) {
         listDiv.appendChild(card);
       });
 
+      // Permite cálculos matemáticos nos inputs para quem tem permissão de edição
       vincularCalculosCard(listDiv, async (fichaId, callbackMutacao) => {
         const ficha = SheetStore.obter(fichaId);
         if (ficha) {
+          const isGM = Estado.role === "GM";
+          const isEditavel = isGM || ficha.editavelPlayer === true;
+          if (!isEditavel) return;
+
           callbackMutacao(ficha);
-          SheetStore.salvar();
-          await atualizarHudToken(ficha);
+          SheetStore.salvar(isGM);
+          if (isGM) {
+            await atualizarHudToken(ficha);
+          }
           OBR.broadcast.sendMessage("solaria/ficha-sync", ficha);
         }
       });
@@ -164,18 +172,24 @@ export function render(container, Estado) {
       ficha,
       () => renderLista(),
       async (dadosSalvos) => {
-        SheetStore.adicionarOuAtualizar(dadosSalvos);
-        await atualizarHudToken(dadosSalvos);
+        const isGM = Estado.role === "GM";
+        SheetStore.adicionarOuAtualizar(dadosSalvos, isGM);
+        if (isGM) {
+          await atualizarHudToken(dadosSalvos);
+        }
         OBR.broadcast.sendMessage("solaria/ficha-sync", dadosSalvos);
         renderLista();
       },
       async (idExcluir) => {
+        const isGM = Estado.role === "GM";
+        if (!isGM) return;
         const f = SheetStore.obter(idExcluir);
         if (f?.tokenId) await removerHudToken(f.tokenId, idExcluir);
         SheetStore.remover(idExcluir);
         OBR.broadcast.sendMessage("solaria/ficha-excluida", idExcluir);
         renderLista();
-      }
+      },
+      Estado.role
     );
   }
 

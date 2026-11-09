@@ -96,7 +96,7 @@
     </div>
   </div>
 
-  <div class="hint">Digite ex: <b>-10</b>, <b>+5</b>, <b>/2</b> e tecle <b>Enter</b></div>
+  <div id="hint-text" class="hint">Digite ex: <b>-10</b>, <b>+5</b>, <b>/2</b> e tecle <b>Enter</b></div>
 
   <script type="module">
     import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
@@ -119,6 +119,24 @@
 
     const inpAtual = document.getElementById("inp-atual");
     const inpMax = document.getElementById("inp-max");
+    const hintText = document.getElementById("hint-text");
+
+    let isEditavel = true;
+
+    OBR.onReady(async () => {
+      const role = await OBR.player.getRole();
+      const isGM = role === "GM";
+      isEditavel = isGM || (ficha && ficha.editavelPlayer === true);
+
+      if (!isEditavel) {
+        inpAtual.setAttribute("readonly", "true");
+        inpMax.setAttribute("readonly", "true");
+        inpAtual.style.cursor = "default";
+        inpMax.style.cursor = "default";
+        hintText.textContent = "🔒 Apenas Leitura (Mestre não liberou edição)";
+        hintText.style.color = "#f7768e";
+      }
+    });
 
     if (ficha) {
       document.getElementById("ficha-nome").textContent = ficha.nome;
@@ -133,7 +151,7 @@
 
     let salvando = false;
     async function salvarEFechar() {
-      if (!ficha || salvando) return;
+      if (!ficha || salvando || !isEditavel) return;
       salvando = true;
 
       const antigoAtual = ficha.stats[statId].atual;
@@ -145,8 +163,12 @@
       localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
 
       try {
-        await atualizarHudToken(ficha);
-        await SolariaSync.sincronizarFichasComSala(fichas);
+        const role = await OBR.player.getRole();
+        if (role === "GM") {
+          await atualizarHudToken(ficha);
+          await SolariaSync.sincronizarFichasComSala(fichas);
+        }
+        await OBR.broadcast.sendMessage("solaria/ficha-sync", ficha);
         await OBR.broadcast.sendMessage("solaria/ficha-stat-atualizado", { sheetId });
       } catch (_) {}
 

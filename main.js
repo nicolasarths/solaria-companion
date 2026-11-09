@@ -2,24 +2,6 @@ import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { registrarMenusContexto } from "./menu/options.js";
 import { sincronizarTodosHuds, METADATA_HUD_KEY, METADATA_BTN_FICHA_KEY } from "./painel/fichas/token-hud.js";
 
-const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, "/");
-
-const _origOpen = OBR.popover.open;
-OBR.popover.open = (config) => {
-  if (config.url && config.url.startsWith("/")) {
-    config.url = new URL("." + config.url, baseUrl).href;
-  }
-  return _origOpen(config);
-};
-
-const _origFetch = window.fetch;
-window.fetch = (input, init) => {
-  if (typeof input === "string" && input.startsWith("/")) {
-    input = new URL("." + input, baseUrl).href;
-  }
-  return _origFetch(input, init);
-};
-
 const ID_PAINEL = "solaria-painel-inferior-direito";
 const ID_QUICK_STAT = "solaria-quick-stat-editor";
 let aberto = false;
@@ -32,7 +14,7 @@ export async function abrirOuFocarPainel() {
 
     await OBR.popover.open({
       id: ID_PAINEL,
-      url: "/painel/painel.html",
+      url: "./painel/painel.html", // <-- Ajustado com ponto
       height: height,
       width: width,
       anchorOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
@@ -45,7 +27,7 @@ export async function abrirOuFocarPainel() {
 
 async function inicializarHudsAoCarregarCena() {
   try {
-const res = await fetch("/api/modulos");
+    const res = await fetch("./modulos.json"); // <-- Ajustado para o arquivo estático
     const modulos = await res.json();
     let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
 
@@ -80,7 +62,7 @@ OBR.onReady(async () => {
   // 2. Controlo: Exibir/Ocultar Stats
   const toggleStats = document.getElementById("toggle-stats");
   if (toggleStats) {
-    toggleStats.checked = localStorage.getItem("solaria_exibir_stats") !== "false"; // Default true
+    toggleStats.checked = localStorage.getItem("solaria_exibir_stats") !== "false";
     toggleStats.addEventListener("change", async (e) => {
       localStorage.setItem("solaria_exibir_stats", e.target.checked);
       const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
@@ -91,13 +73,13 @@ OBR.onReady(async () => {
   // 3. Controlo: Auto-Abrir Painel
   const toggleAuto = document.getElementById("toggle-autoabrir");
   if (toggleAuto) {
-    toggleAuto.checked = localStorage.getItem("solaria_auto_abrir") === "true"; // Default false
+    toggleAuto.checked = localStorage.getItem("solaria_auto_abrir") === "true";
     toggleAuto.addEventListener("change", (e) => {
       localStorage.setItem("solaria_auto_abrir", e.target.checked);
     });
   }
 
-  // 4. Botão de Combate (Mockup)
+  // 4. Botão de Combate
   const btnCombate = document.getElementById("btn-combate");
   if (btnCombate) {
     btnCombate.addEventListener("click", () => {
@@ -123,7 +105,7 @@ OBR.onReady(async () => {
     }
   });
 
-  // Ouve seleção no mapa (Mini-Editor e Botão Ficha)
+  // 6. Ouve seleção no mapa
   OBR.player.onChange(async (player) => {
     const selection = player.selection;
     if (!selection || selection.length !== 1) return;
@@ -162,7 +144,7 @@ OBR.onReady(async () => {
 
         await OBR.popover.open({
           id: ID_QUICK_STAT,
-          url: `/painel/fichas/quick-stat.html?${query}`,
+          url: `./painel/fichas/quick-stat.html?${query}`, // <-- Ajustado com ponto
           width: 210,
           height: 115,
           anchorElementId: item.id,

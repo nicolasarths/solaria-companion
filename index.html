@@ -215,6 +215,22 @@
     <div id="cloud-status" class="cloud-status"></div>
   </div>
 
+  <div class="config-section">
+    <span class="section-title">🧹 Cache & Armazenamento</span>
+    <div style="font-size: 11px; color: #7982a9; line-height: 1.4;">
+      Evita conflitos entre o ambiente local (Dev) e o online (Prod).
+    </div>
+    <div class="cloud-btn-row">
+      <button type="button" id="btn-limpar-cache" class="btn-cloud" style="background: rgba(247, 118, 142, 0.15); color: #f7768e; border: 1px solid rgba(247, 118, 142, 0.4);">
+        🗑️ Limpar Cache Local
+      </button>
+      <button type="button" id="btn-limpar-sala" class="btn-cloud" style="background: #1f2335; color: #e0af68; border: 1px solid rgba(224, 175, 104, 0.4);">
+        🧹 Resetar Sala
+      </button>
+    </div>
+    <div id="cache-status" class="cloud-status"></div>
+  </div>
+
   <button id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>
 
   <script type="module" src="./main.js"></script>

@@ -13,7 +13,6 @@ const ID_PAINEL = "solaria-painel-inferior-direito";
 const ID_QUICK_STAT = "solaria-quick-stat-editor";
 let aberto = false;
 
-// Força o caminho absoluto no GitHub Pages e relativo no ambiente local
 const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 const BASE_URL = isLocal ? "" : "https://nicolasarths.github.io/solaria-companion";
 
@@ -38,6 +37,9 @@ export async function abrirOuFocarPainel() {
 
 async function inicializarHudsAoCarregarCena() {
   try {
+    const role = await OBR.player.getRole();
+    if (role !== "GM") return;
+
     const res = await fetch(BASE_URL + "/modulos.json");
     const modulos = await res.json();
     let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
@@ -57,7 +59,6 @@ async function inicializarHudsAoCarregarCena() {
 }
 
 OBR.onReady(async () => {
-  // 1. Controles da Interface Inicial
   const btn = document.getElementById("toggle-painel");
   if (btn) {
     btn.addEventListener("click", async () => {
@@ -95,8 +96,67 @@ OBR.onReady(async () => {
     });
   }
 
-  // Inicializa o backup em nuvem (JSONBin)
   configurarInterfaceNuvem();
+
+  // Limpeza de Cache Local
+  const btnLimparCache = document.getElementById("btn-limpar-cache");
+  const cacheStatus = document.getElementById("cache-status");
+  if (btnLimparCache) {
+    btnLimparCache.addEventListener("click", () => {
+      const confirmou = window.confirm("Deseja apagar os dados locais do Solaria salvos neste navegador?");
+      if (!confirmou) return;
+
+      Object.keys(localStorage)
+        .filter(k => k.startsWith("solaria_"))
+        .forEach(k => localStorage.removeItem(k));
+
+      if (cacheStatus) {
+        cacheStatus.textContent = "Cache local limpo! Recarregando...";
+        cacheStatus.style.color = "#9ece6a";
+      }
+      try { OBR.notification.show("Armazenamento local do Solaria zerado!"); } catch (_) {}
+      setTimeout(() => location.reload(), 500);
+    });
+  }
+
+  // Reset de Sala (Owlbear Room Metadata e HUDs)
+  const btnLimparSala = document.getElementById("btn-limpar-sala");
+  if (btnLimparSala) {
+    btnLimparSala.addEventListener("click", async () => {
+      const confirmou = window.confirm("Deseja apagar todas as fichas e notas da SALA do Owlbear Rodeo? (Apenas Mestre)");
+      if (!confirmou) return;
+
+      try {
+        const role = await OBR.player.getRole();
+        if (role !== "GM") {
+          alert("Apenas o Mestre pode resetar os dados da sala.");
+          return;
+        }
+
+        await OBR.room.setMetadata({
+          "solaria/sync_fichas": [],
+          "solaria/sync_notas": []
+        });
+
+        const itens = await OBR.scene.items.getItems();
+        const huds = itens.filter(i => i.metadata?.[METADATA_HUD_KEY] || i.metadata?.[METADATA_BTN_FICHA_KEY]);
+        if (huds.length > 0) {
+          await OBR.scene.items.deleteItems(huds.map(h => h.id));
+        }
+
+        if (cacheStatus) {
+          cacheStatus.textContent = "Sala e HUDs do mapa resetados!";
+          cacheStatus.style.color = "#9ece6a";
+        }
+        try { OBR.notification.show("Dados da sala e HUDs resetados! 🧹"); } catch (_) {}
+      } catch (err) {
+        if (cacheStatus) {
+          cacheStatus.textContent = "Erro: " + err.message;
+          cacheStatus.style.color = "#f7768e";
+        }
+      }
+    });
+  }
 
   const autoAbrir = localStorage.getItem("solaria_auto_abrir") === "true";
   if (autoAbrir && !aberto) {
@@ -115,7 +175,7 @@ OBR.onReady(async () => {
     }
   });
 
-  // 2. Ouvintes Globais em Segundo Plano (Sincronização Multiplayer Persistente)
+  // Ouvintes Globais em Segundo Plano
   OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
     const fichaAtualizada = e.data;
     if (!fichaAtualizada || !fichaAtualizada.id) return;
@@ -173,7 +233,7 @@ OBR.onReady(async () => {
     localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
   });
 
-  // 3. Interação com Elementos e Tokens no Grid
+  // Interação com Elementos e Tokens no Grid
   OBR.player.onChange(async (player) => {
     const selection = player.selection;
     if (!selection || selection.length !== 1) return;

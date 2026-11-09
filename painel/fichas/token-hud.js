@@ -39,6 +39,9 @@ function criarComandosRetanguloArredondado(w, h, r) {
 export async function removerHudToken(tokenId, fichaId = null) {
   if (!tokenId && !fichaId) return;
   try {
+    const role = await OBR.player.getRole();
+    if (role !== "GM") return;
+
     const itensCena = await OBR.scene.items.getItems();
     const itensAntigos = itensCena.filter((item) => {
       const isHud = item.metadata?.[METADATA_HUD_KEY] || item.metadata?.[METADATA_BTN_FICHA_KEY];
@@ -55,10 +58,35 @@ export async function removerHudToken(tokenId, fichaId = null) {
   }
 }
 
-export async function atualizarHudToken(ficha, tokenIdEspecifico = null) {
-  const tokenId = tokenIdEspecifico || ficha.tokenId;
-  if (!tokenId) return;
+// Fila assíncrona por token para impedir execuções concorrentes (evita duplicação visual)
+const filaTokens = new Map();
 
+export async function atualizarHudToken(ficha, tokenIdEspecifico = null) {
+  const tokenId = tokenIdEspecifico || ficha?.tokenId;
+  if (!tokenId || !ficha) return;
+
+  try {
+    const role = await OBR.player.getRole();
+    if (role !== "GM") return;
+  } catch (_) {
+    return;
+  }
+
+  const anterior = filaTokens.get(tokenId) || Promise.resolve();
+  const proxima = anterior
+    .catch(() => {})
+    .then(() => _desenharHudInterno(ficha, tokenId))
+    .finally(() => {
+      if (filaTokens.get(tokenId) === proxima) {
+        filaTokens.delete(tokenId);
+      }
+    });
+
+  filaTokens.set(tokenId, proxima);
+  return proxima;
+}
+
+async function _desenharHudInterno(ficha, tokenId) {
   try {
     await removerHudToken(tokenId, ficha.id);
 
@@ -97,7 +125,6 @@ export async function atualizarHudToken(ficha, tokenIdEspecifico = null) {
     const novosItens = [];
     const comandosArredondados = criarComandosRetanguloArredondado(badgeW, badgeH, cornerRadius);
 
-    // LER CONFIGURAÇÃO GLOBAL: Stats ativados? (Default: true)
     const statsAtivosGlobais = localStorage.getItem("solaria_exibir_stats") !== "false";
 
     if (statsAtivosGlobais) {
@@ -210,7 +237,7 @@ export async function atualizarHudToken(ficha, tokenIdEspecifico = null) {
       });
     }
 
-    // 4. Botão Flutuante (📜) - Sempre gerado para não perder acesso à ficha
+    // 4. Botão Flutuante (📜)
     const emojiSize = 30;
     const emojiX = Math.round(centerX + tokenRaio * 0.72 - emojiSize / 2);
     const emojiY = Math.round(centerY + tokenRaio * 0.72 - emojiSize / 2);
@@ -248,7 +275,11 @@ export async function atualizarHudToken(ficha, tokenIdEspecifico = null) {
 }
 
 export async function sincronizarTodosHuds(fichas = []) {
-  for (const f of fichas) {
-    if (f.tokenId) await atualizarHudToken(f);
-  }
+  try {
+    const role = await OBR.player.getRole();
+    if (role !== "GM") return;
+    for (const f of fichas) {
+      if (f.tokenId) await atualizarHudToken(f);
+    }
+  } catch (_) {}
 }

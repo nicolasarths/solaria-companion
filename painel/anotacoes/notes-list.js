@@ -1,3 +1,4 @@
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { NotesStore } from "./notes-store.js";
 import { criarCardNota } from "./note-card.js";
 
@@ -7,7 +8,7 @@ export function criarGerenciadorNotas(containerCards, Estado) {
 
   function obterFichasDisponiveis() {
     const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
-    return fichas.filter(f => Estado.role === "GM" || f.visivelPlayer);
+    return fichas.filter(f => Estado.role === "GM" || f.visivelPlayer !== false);
   }
 
   function salvarEstados() {
@@ -19,7 +20,7 @@ export function criarGerenciadorNotas(containerCards, Estado) {
     const isGM = Estado.role === "GM";
 
     // Filtra as notas: Mestre vê todas; Jogador vê apenas as visíveis
-    const notasFiltradas = NotesStore.notas.filter(n => isGM || n.visivelPlayer);
+    const notasFiltradas = NotesStore.notas.filter(n => isGM || n.visivelPlayer === true);
 
     if (!notasFiltradas.length) {
       containerCards.innerHTML = `
@@ -41,29 +42,64 @@ export function criarGerenciadorNotas(containerCards, Estado) {
       const card = criarCardNota({
         nota,
         aberta,
-        role: Estado.role, // Passando a visão atual
+        role: Estado.role,
         fichasDisponiveis: fichas,
         onToggle: (estaAberta) => {
           estadosAbertura[nota.id] = estaAberta;
           salvarEstados();
         },
-        onVisibilidadeChange: () => { // Alternar visibilidade
-          NotesStore.atualizarNota(nota.id, { visivelPlayer: !nota.visivelPlayer });
+        onVisibilidadeChange: async () => {
+          const novaVisibilidade = !nota.visivelPlayer;
+          NotesStore.atualizarNota(nota.id, { visivelPlayer: novaVisibilidade });
+          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || { ...nota, visivelPlayer: novaVisibilidade };
+
+          try {
+            if (novaVisibilidade) {
+              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+            } else {
+              await OBR.broadcast.sendMessage("solaria/nota-excluida", nota.id);
+            }
+          } catch (_) {}
+
           renderizar();
         },
-        onTituloChange: (novoTitulo) => {
+        onTituloChange: async (novoTitulo) => {
           NotesStore.atualizarNota(nota.id, { titulo: novoTitulo });
+          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
+          if (notaAtualizada.visivelPlayer) {
+            try {
+              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+            } catch (_) {}
+          }
         },
-        onConteudoChange: (novoConteudo) => {
+        onConteudoChange: async (novoConteudo) => {
           NotesStore.atualizarNota(nota.id, { conteudo: novoConteudo });
+          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
+          if (notaAtualizada.visivelPlayer) {
+            try {
+              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+            } catch (_) {}
+          }
         },
-        onAnexosChange: (novosAnexos) => {
+        onAnexosChange: async (novosAnexos) => {
           NotesStore.atualizarNota(nota.id, { anexos: novosAnexos });
+          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
+          if (notaAtualizada.visivelPlayer) {
+            try {
+              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+            } catch (_) {}
+          }
         },
-        onExcluir: () => {
-          delete estadosAbertura[nota.id];
+        onExcluir: async () => {
+          const idExcluir = nota.id;
+          delete estadosAbertura[idExcluir];
           salvarEstados();
-          NotesStore.excluirNota(nota.id);
+          NotesStore.excluirNota(idExcluir);
+
+          try {
+            await OBR.broadcast.sendMessage("solaria/nota-excluida", idExcluir);
+          } catch (_) {}
+
           renderizar();
         },
         onNavegarFicha: (sheetId) => {

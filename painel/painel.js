@@ -3,7 +3,15 @@ import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 const ID_PAINEL = "solaria-painel-inferior-direito";
 
 export const Estado = {
-  role: "GM",
+  // Padrão seguro inicial: sempre PLAYER até confirmação do SDK
+  realRole: "PLAYER",
+  viewRole: "PLAYER",
+  get role() {
+    return this.viewRole;
+  },
+  set role(val) {
+    this.viewRole = val;
+  },
   abaAtiva: localStorage.getItem("solaria_aba_ativa") || null,
   modulos: {},
   dimensoes: JSON.parse(localStorage.getItem("solaria_painel_dimensoes") || '{"width":480,"height":680}'),
@@ -90,7 +98,7 @@ function configurarArrasto() {
 }
 
 export async function carregarPainel() {
-const res = await fetch("../modulos.json");
+  const res = await fetch("../modulos.json");
   Estado.modulos = await res.json();
 
   const tabsBar = document.getElementById("tabs-bar");
@@ -172,35 +180,65 @@ function renderizarListaPadrao(section, pasta, registros) {
 }
 
 const badge = document.getElementById("role-badge");
-export function definirCargo(role) {
-  Estado.role = role;
-  if (badge) {
-    badge.textContent = role === "GM" ? "Visão: Mestre (GM)" : "Visão: Jogador";
-    badge.className = `role-badge ${role === "GM" ? "role-gm" : "role-player"}`;
+
+export function definirVisualizacao(role) {
+  if (Estado.realRole !== "GM") {
+    Estado.viewRole = "PLAYER";
+  } else {
+    Estado.viewRole = role;
   }
+
+  if (badge) {
+    if (Estado.realRole !== "GM") {
+      badge.textContent = "Visão: Jogador";
+      badge.className = "role-badge role-player";
+      badge.style.cursor = "default";
+      badge.style.pointerEvents = "none";
+      badge.title = "";
+    } else {
+      badge.textContent = Estado.viewRole === "GM" ? "Visão: Mestre (GM)" : "Visão: Jogador";
+      badge.className = `role-badge ${Estado.viewRole === "GM" ? "role-gm" : "role-player"}`;
+      badge.style.cursor = "pointer";
+      badge.style.pointerEvents = "auto";
+      badge.title = "Clique para alternar modo de teste (Mestre / Jogador)";
+    }
+  }
+
   carregarPainel();
 }
 
+export function configurarCargos(realRole) {
+  Estado.realRole = realRole;
+  definirVisualizacao(realRole);
+}
+
+export const definirCargo = configurarCargos;
+
 if (badge) {
   badge.addEventListener("click", () => {
-    definirCargo(Estado.role === "GM" ? "PLAYER" : "GM");
+    if (Estado.realRole !== "GM") return;
+    definirVisualizacao(Estado.viewRole === "GM" ? "PLAYER" : "GM");
   });
 }
 
 let inicializado = false;
+
 OBR.onReady(async () => {
   if (!inicializado) {
     inicializado = true;
     configurarArrasto();
     const role = await OBR.player.getRole();
-    definirCargo(role);
+    configurarCargos(role);
   }
 });
 
+// Fallback seguro: se não estiver dentro de um iframe do Owlbear (teste direto em aba avulsa),
+// libera GM apenas se for janela raiz (window.self === window.top). Dentro do Owlbear, mantém PLAYER.
 setTimeout(() => {
   if (!inicializado) {
     inicializado = true;
     configurarArrasto();
-    definirCargo("GM");
+    const isStandalone = window.self === window.top;
+    configurarCargos(isStandalone ? "GM" : "PLAYER");
   }
-}, 400);
+}, 500);

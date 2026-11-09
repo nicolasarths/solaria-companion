@@ -5,6 +5,7 @@ import { criarElementoCard } from "./card.js";
 import { renderFormulario } from "./form.js";
 import { iniciarOuvintesOwlbear } from "./obr-sync.js";
 import { atualizarHudToken, removerHudToken, sincronizarTodosHuds } from "./token-hud.js";
+import { SolariaSync } from "../../core/sync.js";
 
 export function render(container, Estado) {
   if (!document.getElementById("css-fichas")) {
@@ -18,19 +19,28 @@ export function render(container, Estado) {
   SheetStore.carregar(Estado.modulos.fichas?.registros);
   sincronizarTodosHuds(SheetStore.fichas);
 
-  // 📡 SINCRONIZAÇÃO EM TEMPO REAL: Recebe as fichas atualizadas de outros jogadores/Mestre
-  OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
-    const fichaAtualizada = e.data;
-    SheetStore.adicionarOuAtualizar(fichaAtualizada);
-    await atualizarHudToken(fichaAtualizada);
+  SolariaSync.iniciarOuvinteSala({
+    onFichasRecebidas: (fichasPublicas) => {
+      if (Estado.realRole !== "GM") {
+        SheetStore.mesclarFichasPublicas(fichasPublicas);
+        renderLista();
+      }
+    }
+  });
+
+  // Atualiza a visualização caso o painel esteja aberto no momento da transmissão
+  OBR.broadcast.onMessage("solaria/ficha-sync", () => {
+    SheetStore.carregar();
     renderLista();
   });
 
-  OBR.broadcast.onMessage("solaria/ficha-excluida", async (e) => {
-    const idExcluir = e.data;
-    const f = SheetStore.obter(idExcluir);
-    if (f?.tokenId) await removerHudToken(f.tokenId);
-    SheetStore.remover(idExcluir);
+  OBR.broadcast.onMessage("solaria/ficha-excluida", () => {
+    SheetStore.carregar();
+    renderLista();
+  });
+
+  OBR.broadcast.onMessage("solaria/ficha-stat-atualizado", () => {
+    SheetStore.carregar();
     renderLista();
   });
 
@@ -126,7 +136,6 @@ export function render(container, Estado) {
           onEditar: (item) => abrirForm(item),
           onAtualizar: (fichaAtualizada) => { 
             SheetStore.salvar(); 
-            // 📡 Envia a ficha alterada para os jogadores verem instantaneamente
             if (fichaAtualizada) OBR.broadcast.sendMessage("solaria/ficha-sync", fichaAtualizada);
             desenhar(); 
           }
@@ -140,7 +149,7 @@ export function render(container, Estado) {
           callbackMutacao(ficha);
           SheetStore.salvar();
           await atualizarHudToken(ficha);
-          OBR.broadcast.sendMessage("solaria/ficha-sync", ficha); // 📡 Sincroniza cálculos
+          OBR.broadcast.sendMessage("solaria/ficha-sync", ficha);
         }
       });
     };
@@ -157,14 +166,14 @@ export function render(container, Estado) {
       async (dadosSalvos) => {
         SheetStore.adicionarOuAtualizar(dadosSalvos);
         await atualizarHudToken(dadosSalvos);
-        OBR.broadcast.sendMessage("solaria/ficha-sync", dadosSalvos); // 📡 Sincroniza formulário salvo
+        OBR.broadcast.sendMessage("solaria/ficha-sync", dadosSalvos);
         renderLista();
       },
       async (idExcluir) => {
         const f = SheetStore.obter(idExcluir);
-        if (f?.tokenId) await removerHudToken(f.tokenId);
+        if (f?.tokenId) await removerHudToken(f.tokenId, idExcluir);
         SheetStore.remover(idExcluir);
-        OBR.broadcast.sendMessage("solaria/ficha-excluida", idExcluir); // 📡 Sincroniza exclusão
+        OBR.broadcast.sendMessage("solaria/ficha-excluida", idExcluir);
         renderLista();
       }
     );
@@ -174,11 +183,6 @@ export function render(container, Estado) {
     (sheetId) => focarCardFicha(sheetId),
     (tokenId, tokenNome) => executarCriacaoComToken(tokenId, tokenNome)
   );
-
-  OBR.broadcast.onMessage("solaria/ficha-stat-atualizado", () => {
-    SheetStore.carregar(Estado.modulos.fichas?.registros);
-    renderLista();
-  });
 
   renderLista();
   checarAcaoPendente();

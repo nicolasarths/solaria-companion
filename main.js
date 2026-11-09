@@ -1,12 +1,19 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { registrarMenusContexto } from "./menu/options.js";
-import { sincronizarTodosHuds, METADATA_HUD_KEY, METADATA_BTN_FICHA_KEY } from "./painel/fichas/token-hud.js";
+import { 
+  sincronizarTodosHuds, 
+  atualizarHudToken, 
+  removerHudToken, 
+  METADATA_HUD_KEY, 
+  METADATA_BTN_FICHA_KEY 
+} from "./painel/fichas/token-hud.js";
+import { configurarInterfaceNuvem } from "./core/cloud.js";
 
 const ID_PAINEL = "solaria-painel-inferior-direito";
 const ID_QUICK_STAT = "solaria-quick-stat-editor";
 let aberto = false;
 
-// 🔥 SOLUÇÃO DEFINITIVA: Força o caminho absoluto no GitHub Pages
+// Força o caminho absoluto no GitHub Pages e relativo no ambiente local
 const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 const BASE_URL = isLocal ? "" : "https://nicolasarths.github.io/solaria-companion";
 
@@ -50,6 +57,7 @@ async function inicializarHudsAoCarregarCena() {
 }
 
 OBR.onReady(async () => {
+  // 1. Controles da Interface Inicial
   const btn = document.getElementById("toggle-painel");
   if (btn) {
     btn.addEventListener("click", async () => {
@@ -87,6 +95,9 @@ OBR.onReady(async () => {
     });
   }
 
+  // Inicializa o backup em nuvem (JSONBin)
+  configurarInterfaceNuvem();
+
   const autoAbrir = localStorage.getItem("solaria_auto_abrir") === "true";
   if (autoAbrir && !aberto) {
     setTimeout(() => abrirOuFocarPainel(), 500);
@@ -104,6 +115,65 @@ OBR.onReady(async () => {
     }
   });
 
+  // 2. Ouvintes Globais em Segundo Plano (Sincronização Multiplayer Persistente)
+  OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
+    const fichaAtualizada = e.data;
+    if (!fichaAtualizada || !fichaAtualizada.id) return;
+
+    let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const idx = fichas.findIndex(f => f.id === fichaAtualizada.id);
+    if (idx >= 0) {
+      fichas[idx] = fichaAtualizada;
+    } else {
+      fichas.unshift(fichaAtualizada);
+    }
+    localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
+    await atualizarHudToken(fichaAtualizada);
+  });
+
+  OBR.broadcast.onMessage("solaria/ficha-excluida", async (e) => {
+    const idExcluir = e.data;
+    if (!idExcluir) return;
+
+    let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const f = fichas.find(item => item.id === idExcluir);
+    if (f?.tokenId) await removerHudToken(f.tokenId, idExcluir);
+    fichas = fichas.filter(item => item.id !== idExcluir);
+    localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
+  });
+
+  OBR.broadcast.onMessage("solaria/ficha-stat-atualizado", async (e) => {
+    const { sheetId } = e.data || {};
+    if (!sheetId) return;
+    const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const f = fichas.find(item => item.id === sheetId);
+    if (f) await atualizarHudToken(f);
+  });
+
+  OBR.broadcast.onMessage("solaria/nota-sync", (e) => {
+    const notaAtualizada = e.data;
+    if (!notaAtualizada || !notaAtualizada.id) return;
+
+    let notas = JSON.parse(localStorage.getItem("solaria_notas_multiplas") || "[]");
+    const idx = notas.findIndex(n => n.id === notaAtualizada.id);
+    if (idx >= 0) {
+      notas[idx] = notaAtualizada;
+    } else {
+      notas.unshift(notaAtualizada);
+    }
+    localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
+  });
+
+  OBR.broadcast.onMessage("solaria/nota-excluida", (e) => {
+    const idExcluir = e.data;
+    if (!idExcluir) return;
+
+    let notas = JSON.parse(localStorage.getItem("solaria_notas_multiplas") || "[]");
+    notas = notas.filter(n => n.id !== idExcluir);
+    localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
+  });
+
+  // 3. Interação com Elementos e Tokens no Grid
   OBR.player.onChange(async (player) => {
     const selection = player.selection;
     if (!selection || selection.length !== 1) return;

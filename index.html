@@ -11,9 +11,10 @@
       margin: 0;
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      height: 100vh;
+      gap: 14px;
+      min-height: 100vh;
       box-sizing: border-box;
+      overflow-y: auto;
     }
     
     .btn-main {
@@ -41,7 +42,7 @@
       cursor: pointer;
       transition: background-color 0.2s;
       width: 100%;
-      margin-top: auto; /* Empurra para o fundo */
+      margin-top: auto;
     }
     .btn-danger:hover { background-color: #f55373; }
 
@@ -60,6 +61,84 @@
       align-items: center;
       font-size: 13px;
       font-weight: 600;
+    }
+
+    .section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #7982a9;
+      letter-spacing: 0.5px;
+    }
+
+    .cloud-field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .cloud-field label {
+      font-size: 11px;
+      color: #a9b1d6;
+      font-weight: 600;
+    }
+
+    .cloud-input {
+      background: #16161e;
+      border: 1px solid #3b4261;
+      color: #c0caf5;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .cloud-input:focus {
+      border-color: #7aa2f7;
+    }
+
+    .cloud-btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .btn-cloud {
+      flex: 1;
+      padding: 8px 6px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, background-color 0.2s;
+      border: none;
+    }
+
+    .btn-cloud-save {
+      background: #7aa2f7;
+      color: #14161f;
+    }
+
+    .btn-cloud-save:hover {
+      opacity: 0.9;
+    }
+
+    .btn-cloud-load {
+      background: #1f2335;
+      color: #c0caf5;
+      border: 1px solid #3b4261;
+    }
+
+    .btn-cloud-load:hover {
+      background: #2f354d;
+    }
+
+    .cloud-status {
+      font-size: 10px;
+      text-align: center;
+      min-height: 14px;
+      color: #7982a9;
     }
 
     /* Estilo do Toggle Switch */
@@ -113,6 +192,27 @@
         <span class="slider"></span>
       </label>
     </div>
+  </div>
+
+  <div class="config-section">
+    <span class="section-title">☁️ Backup em Nuvem (JSONBin)</span>
+
+    <div class="cloud-field">
+      <label for="cloud-bin-id">Bin ID:</label>
+      <input type="text" id="cloud-bin-id" class="cloud-input" placeholder="Ex: 66a1b2c3d4e5f6...">
+    </div>
+
+    <div class="cloud-field">
+      <label for="cloud-master-key">Master Key ($2a$10...):</label>
+      <input type="password" id="cloud-master-key" class="cloud-input" placeholder="Sua Master Key...">
+    </div>
+
+    <div class="cloud-btn-row">
+      <button type="button" id="btn-salvar-nuvem" class="btn-cloud btn-cloud-save">⬆️ Salvar Nuvem</button>
+      <button type="button" id="btn-baixar-nuvem" class="btn-cloud btn-cloud-load">⬇️ Baixar Nuvem</button>
+    </div>
+
+    <div id="cloud-status" class="cloud-status"></div>
   </div>
 
   <button id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>

@@ -1,0 +1,4619 @@
+=== ARQUIVO: \core\cloud.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { SolariaSync } from "./sync.js";
+
+const STORAGE_KEYS = {
+  BIN_ID: "solaria_cloud_bin_id",
+  MASTER_KEY: "solaria_cloud_master_key",
+  FICHAS: "solaria_fichas_custom",
+  NOTAS: "solaria_notas_multiplas"
+};
+
+export const SolariaCloud = {
+  obterCredenciais() {
+    return {
+      binId: (localStorage.getItem(STORAGE_KEYS.BIN_ID) || "").trim(),
+      masterKey: (localStorage.getItem(STORAGE_KEYS.MASTER_KEY) || "").trim()
+    };
+  },
+
+  salvarCredenciais(binId, masterKey) {
+    localStorage.setItem(STORAGE_KEYS.BIN_ID, (binId || "").trim());
+    localStorage.setItem(STORAGE_KEYS.MASTER_KEY, (masterKey || "").trim());
+  },
+
+  /**
+   * Salva fichas e anotações no JSONBin.io
+   */
+  async salvarNuvem(binId, masterKey) {
+    const bId = binId || this.obterCredenciais().binId;
+    const mKey = masterKey || this.obterCredenciais().masterKey;
+
+    if (!bId || !mKey) {
+      throw new Error("Preencha o Bin ID e a Master Key antes de salvar.");
+    }
+
+    const fichas = JSON.parse(localStorage.getItem(STORAGE_KEYS.FICHAS) || "[]");
+    const notas = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTAS) || "[]");
+
+    const payload = {
+      fichas,
+      notas,
+      atualizadoEm: new Date().toISOString()
+    };
+
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${bId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key": mKey
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || `Erro HTTP ${res.status} ao salvar na nuvem.`);
+    }
+
+    this.salvarCredenciais(bId, mKey);
+    return { fichasQtd: fichas.length, notasQtd: notas.length };
+  },
+
+  /**
+   * Baixa e restaura fichas e anotações do JSONBin.io
+   */
+  async baixarNuvem(binId, masterKey) {
+    const bId = binId || this.obterCredenciais().binId;
+    const mKey = masterKey || this.obterCredenciais().masterKey;
+
+    if (!bId || !mKey) {
+      throw new Error("Preencha o Bin ID e a Master Key antes de baixar.");
+    }
+
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${bId}/latest`, {
+      method: "GET",
+      headers: {
+        "X-Master-Key": mKey
+      }
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || `Erro HTTP ${res.status} ao baixar da nuvem.`);
+    }
+
+    const data = await res.json();
+    const record = data.record || {};
+
+    const fichas = Array.isArray(record.fichas) ? record.fichas : [];
+    const notas = Array.isArray(record.notas) ? record.notas : [];
+
+    localStorage.setItem(STORAGE_KEYS.FICHAS, JSON.stringify(fichas));
+    localStorage.setItem(STORAGE_KEYS.NOTAS, JSON.stringify(notas));
+    this.salvarCredenciais(bId, mKey);
+
+    // Se o usuário for Mestre, replica imediatamente para o Room Metadata e Broadcast
+    try {
+      const role = await OBR.player.getRole();
+      if (role === "GM") {
+        await SolariaSync.sincronizarFichasComSala(fichas);
+        await SolariaSync.sincronizarNotasComSala(notas);
+      }
+      await OBR.broadcast.sendMessage("solaria/ficha-sync", fichas[0] || {});
+      await OBR.broadcast.sendMessage("solaria/nota-sync", notas[0] || {});
+    } catch (_) {}
+
+    return { fichasQtd: fichas.length, notasQtd: notas.length };
+  }
+};
+
+/**
+ * Conecta os elementos da interface do index.html ao módulo da nuvem
+ */
+export function configurarInterfaceNuvem() {
+  const inpBinId = document.getElementById("cloud-bin-id");
+  const inpKey = document.getElementById("cloud-master-key");
+  const btnSalvar = document.getElementById("btn-salvar-nuvem");
+  const btnBaixar = document.getElementById("btn-baixar-nuvem");
+  const statusEl = document.getElementById("cloud-status");
+
+  if (!inpBinId || !inpKey || !btnSalvar || !btnBaixar) return;
+
+  const creds = SolariaCloud.obterCredenciais();
+  inpBinId.value = creds.binId;
+  inpKey.value = creds.masterKey;
+
+  const salvarInputs = () => {
+    SolariaCloud.salvarCredenciais(inpBinId.value, inpKey.value);
+  };
+
+  inpBinId.addEventListener("input", salvarInputs);
+  inpKey.addEventListener("input", salvarInputs);
+
+  function exibirStatus(msg, cor = "#7982a9") {
+    if (statusEl) {
+      statusEl.textContent = msg;
+      statusEl.style.color = cor;
+    }
+  }
+
+  btnSalvar.addEventListener("click", async () => {
+    try {
+      exibirStatus("Salvando na nuvem...", "#e0af68");
+      btnSalvar.disabled = true;
+
+      const res = await SolariaCloud.salvarNuvem(inpBinId.value, inpKey.value);
+      exibirStatus(`Salvo! (${res.fichasQtd} fichas, ${res.notasQtd} notas)`, "#9ece6a");
+
+      try {
+        OBR.notification.show("Backup salvo na nuvem com sucesso! ☁️");
+      } catch (_) {}
+    } catch (err) {
+      exibirStatus(err.message, "#f7768e");
+    } finally {
+      btnSalvar.disabled = false;
+    }
+  });
+
+  btnBaixar.addEventListener("click", async () => {
+    try {
+      exibirStatus("Baixando da nuvem...", "#e0af68");
+      btnBaixar.disabled = true;
+
+      const res = await SolariaCloud.baixarNuvem(inpBinId.value, inpKey.value);
+      exibirStatus(`Restaurado: ${res.fichasQtd} fichas, ${res.notasQtd} notas!`, "#9ece6a");
+
+      try {
+        OBR.notification.show("Dados restaurados da nuvem com sucesso! 📥");
+      } catch (_) {}
+    } catch (err) {
+      exibirStatus(err.message, "#f7768e");
+    } finally {
+      btnBaixar.disabled = false;
+    }
+  });
+}
+
+=== ARQUIVO: \core\sync.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+
+export const SYNC_KEYS = {
+  FICHAS: "solaria/sync_fichas",
+  NOTAS: "solaria/sync_notas"
+};
+
+export const SolariaSync = {
+  /**
+   * Mestre publica todas as fichas visíveis nos metadados da sala
+   */
+  async sincronizarFichasComSala(fichas = []) {
+    try {
+      const role = await OBR.player.getRole();
+      if (role !== "GM") return;
+
+      const fichasPublicas = fichas.filter(f => f.visivelPlayer !== false);
+      await OBR.room.setMetadata({
+        [SYNC_KEYS.FICHAS]: fichasPublicas
+      });
+    } catch (err) {
+      console.error("Erro ao sincronizar fichas no Room Metadata:", err);
+    }
+  },
+
+  /**
+   * Mestre publica todas as anotações visíveis nos metadados da sala
+   */
+  async sincronizarNotasComSala(notas = []) {
+    try {
+      const role = await OBR.player.getRole();
+      if (role !== "GM") return;
+
+      const notasPublicas = notas.filter(n => n.visivelPlayer === true);
+      await OBR.room.setMetadata({
+        [SYNC_KEYS.NOTAS]: notasPublicas
+      });
+    } catch (err) {
+      console.error("Erro ao sincronizar notas no Room Metadata:", err);
+    }
+  },
+
+  /**
+   * Inicia escuta contínua de Room Metadata para atualizar o cliente do Jogador
+   */
+  iniciarOuvinteSala({ onFichasRecebidas, onNotasRecebidas }) {
+    // 1. Carrega dados iniciais da sala imediatamente
+    OBR.room.getMetadata().then((meta) => {
+      if (meta?.[SYNC_KEYS.FICHAS] && typeof onFichasRecebidas === "function") {
+        onFichasRecebidas(meta[SYNC_KEYS.FICHAS]);
+      }
+      if (meta?.[SYNC_KEYS.NOTAS] && typeof onNotasRecebidas === "function") {
+        onNotasRecebidas(meta[SYNC_KEYS.NOTAS]);
+      }
+    }).catch(() => {});
+
+    // 2. Ouve alterações em tempo real na sala
+    return OBR.room.onMetadataChange((meta) => {
+      if (meta?.[SYNC_KEYS.FICHAS] && typeof onFichasRecebidas === "function") {
+        onFichasRecebidas(meta[SYNC_KEYS.FICHAS]);
+      }
+      if (meta?.[SYNC_KEYS.NOTAS] && typeof onNotasRecebidas === "function") {
+        onNotasRecebidas(meta[SYNC_KEYS.NOTAS]);
+      }
+    });
+  }
+};
+
+=== ARQUIVO: \index.html ===
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      background-color: #1a1b26;
+      color: #c0caf5;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 16px;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-height: 100vh;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+    
+    .btn-main {
+      background-color: #9d7cd8;
+      color: #ffffff;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      width: 100%;
+    }
+    .btn-main:hover { background-color: #b193e6; }
+    
+    .btn-danger {
+      background-color: #f7768e;
+      color: #ffffff;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      width: 100%;
+      margin-top: auto;
+    }
+    .btn-danger:hover { background-color: #f55373; }
+
+    .config-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: #24283b;
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .config-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #7982a9;
+      letter-spacing: 0.5px;
+    }
+
+    .cloud-field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .cloud-field label {
+      font-size: 11px;
+      color: #a9b1d6;
+      font-weight: 600;
+    }
+
+    .cloud-input {
+      background: #16161e;
+      border: 1px solid #3b4261;
+      color: #c0caf5;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .cloud-input:focus {
+      border-color: #7aa2f7;
+    }
+
+    .cloud-btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .btn-cloud {
+      flex: 1;
+      padding: 8px 6px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, background-color 0.2s;
+      border: none;
+    }
+
+    .btn-cloud-save {
+      background: #7aa2f7;
+      color: #14161f;
+    }
+
+    .btn-cloud-save:hover {
+      opacity: 0.9;
+    }
+
+    .btn-cloud-load {
+      background: #1f2335;
+      color: #c0caf5;
+      border: 1px solid #3b4261;
+    }
+
+    .btn-cloud-load:hover {
+      background: #2f354d;
+    }
+
+    .cloud-status {
+      font-size: 10px;
+      text-align: center;
+      min-height: 14px;
+      color: #7982a9;
+    }
+
+    /* Estilo do Toggle Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #414868;
+      transition: .3s;
+      border-radius: 20px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider { background-color: #73daca; }
+    input:checked + .slider:before { transform: translateX(16px); }
+  </style>
+</head>
+<body>
+
+  <button id="toggle-painel" class="btn-main">Abrir / Fechar Painel</button>
+
+  <div class="config-section">
+    <div class="config-row">
+      <span>Exibir Stats no Mapa</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle-stats" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    
+    <div class="config-row" title="Abre o painel lateral automaticamente quando entra na sala">
+      <span>Painel na Inicialização</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle-autoabrir">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="config-section">
+    <span class="section-title">☁️ Backup em Nuvem (JSONBin)</span>
+
+    <div class="cloud-field">
+      <label for="cloud-bin-id">Bin ID:</label>
+      <input type="text" id="cloud-bin-id" class="cloud-input" placeholder="Ex: 66a1b2c3d4e5f6...">
+    </div>
+
+    <div class="cloud-field">
+      <label for="cloud-master-key">Master Key ($2a$10...):</label>
+      <input type="password" id="cloud-master-key" class="cloud-input" placeholder="Sua Master Key...">
+    </div>
+
+    <div class="cloud-btn-row">
+      <button type="button" id="btn-salvar-nuvem" class="btn-cloud btn-cloud-save">⬆️ Salvar Nuvem</button>
+      <button type="button" id="btn-baixar-nuvem" class="btn-cloud btn-cloud-load">⬇️ Baixar Nuvem</button>
+    </div>
+
+    <div id="cloud-status" class="cloud-status"></div>
+  </div>
+
+  <button id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
+
+=== ARQUIVO: \main.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { registrarMenusContexto } from "./menu/options.js";
+import { 
+  sincronizarTodosHuds, 
+  atualizarHudToken, 
+  removerHudToken, 
+  METADATA_HUD_KEY, 
+  METADATA_BTN_FICHA_KEY 
+} from "./painel/fichas/token-hud.js";
+import { configurarInterfaceNuvem } from "./core/cloud.js";
+
+const ID_PAINEL = "solaria-painel-inferior-direito";
+const ID_QUICK_STAT = "solaria-quick-stat-editor";
+let aberto = false;
+
+// Força o caminho absoluto no GitHub Pages e relativo no ambiente local
+const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const BASE_URL = isLocal ? "" : "https://nicolasarths.github.io/solaria-companion";
+
+export async function abrirOuFocarPainel() {
+  if (!aberto) {
+    const salvo = JSON.parse(localStorage.getItem("solaria_painel_dimensoes") || "{}");
+    const width = salvo.width || 480;
+    const height = salvo.height || 680;
+
+    await OBR.popover.open({
+      id: ID_PAINEL,
+      url: BASE_URL + "/painel/painel.html",
+      height: height,
+      width: width,
+      anchorOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
+      transformOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
+      disableClickAway: true
+    });
+    aberto = true;
+  }
+}
+
+async function inicializarHudsAoCarregarCena() {
+  try {
+    const res = await fetch(BASE_URL + "/modulos.json");
+    const modulos = await res.json();
+    let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+
+    if (modulos.fichas?.registros) {
+      modulos.fichas.registros.forEach(f => {
+        if (!fichas.some(item => item.id === f.id)) {
+          fichas.push(f);
+        }
+      });
+    }
+
+    await sincronizarTodosHuds(fichas);
+  } catch (err) {
+    console.error("Erro ao sincronizar HUDs iniciais:", err);
+  }
+}
+
+OBR.onReady(async () => {
+  // 1. Controles da Interface Inicial
+  const btn = document.getElementById("toggle-painel");
+  if (btn) {
+    btn.addEventListener("click", async () => {
+      if (!aberto) {
+        await abrirOuFocarPainel();
+      } else {
+        await OBR.popover.close(ID_PAINEL);
+        aberto = false;
+      }
+    });
+  }
+
+  const toggleStats = document.getElementById("toggle-stats");
+  if (toggleStats) {
+    toggleStats.checked = localStorage.getItem("solaria_exibir_stats") !== "false";
+    toggleStats.addEventListener("change", async (e) => {
+      localStorage.setItem("solaria_exibir_stats", e.target.checked);
+      const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+      await sincronizarTodosHuds(fichas);
+    });
+  }
+
+  const toggleAuto = document.getElementById("toggle-autoabrir");
+  if (toggleAuto) {
+    toggleAuto.checked = localStorage.getItem("solaria_auto_abrir") === "true";
+    toggleAuto.addEventListener("change", (e) => {
+      localStorage.setItem("solaria_auto_abrir", e.target.checked);
+    });
+  }
+
+  const btnCombate = document.getElementById("btn-combate");
+  if (btnCombate) {
+    btnCombate.addEventListener("click", () => {
+      OBR.notification.show("Módulo de combate será implementado em breve! ⚔️");
+    });
+  }
+
+  // Inicializa o backup em nuvem (JSONBin)
+  configurarInterfaceNuvem();
+
+  const autoAbrir = localStorage.getItem("solaria_auto_abrir") === "true";
+  if (autoAbrir && !aberto) {
+    setTimeout(() => abrirOuFocarPainel(), 500);
+  }
+
+  await registrarMenusContexto({ abrirOuFocarPainel });
+
+  const isReady = await OBR.scene.isReady();
+  if (isReady) {
+    await inicializarHudsAoCarregarCena();
+  }
+  OBR.scene.onReadyChange(async (ready) => {
+    if (ready) {
+      await inicializarHudsAoCarregarCena();
+    }
+  });
+
+  // 2. Ouvintes Globais em Segundo Plano (Sincronização Multiplayer Persistente)
+  OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
+    const fichaAtualizada = e.data;
+    if (!fichaAtualizada || !fichaAtualizada.id) return;
+
+    let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const idx = fichas.findIndex(f => f.id === fichaAtualizada.id);
+    if (idx >= 0) {
+      fichas[idx] = fichaAtualizada;
+    } else {
+      fichas.unshift(fichaAtualizada);
+    }
+    localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
+    await atualizarHudToken(fichaAtualizada);
+  });
+
+  OBR.broadcast.onMessage("solaria/ficha-excluida", async (e) => {
+    const idExcluir = e.data;
+    if (!idExcluir) return;
+
+    let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const f = fichas.find(item => item.id === idExcluir);
+    if (f?.tokenId) await removerHudToken(f.tokenId, idExcluir);
+    fichas = fichas.filter(item => item.id !== idExcluir);
+    localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
+  });
+
+  OBR.broadcast.onMessage("solaria/ficha-stat-atualizado", async (e) => {
+    const { sheetId } = e.data || {};
+    if (!sheetId) return;
+    const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const f = fichas.find(item => item.id === sheetId);
+    if (f) await atualizarHudToken(f);
+  });
+
+  OBR.broadcast.onMessage("solaria/nota-sync", (e) => {
+    const notaAtualizada = e.data;
+    if (!notaAtualizada || !notaAtualizada.id) return;
+
+    let notas = JSON.parse(localStorage.getItem("solaria_notas_multiplas") || "[]");
+    const idx = notas.findIndex(n => n.id === notaAtualizada.id);
+    if (idx >= 0) {
+      notas[idx] = notaAtualizada;
+    } else {
+      notas.unshift(notaAtualizada);
+    }
+    localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
+  });
+
+  OBR.broadcast.onMessage("solaria/nota-excluida", (e) => {
+    const idExcluir = e.data;
+    if (!idExcluir) return;
+
+    let notas = JSON.parse(localStorage.getItem("solaria_notas_multiplas") || "[]");
+    notas = notas.filter(n => n.id !== idExcluir);
+    localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
+  });
+
+  // 3. Interação com Elementos e Tokens no Grid
+  OBR.player.onChange(async (player) => {
+    const selection = player.selection;
+    if (!selection || selection.length !== 1) return;
+
+    try {
+      const items = await OBR.scene.items.getItems(selection);
+      const item = items[0];
+      if (!item) return;
+
+      if (item.metadata?.[METADATA_BTN_FICHA_KEY]) {
+        await OBR.player.deselect();
+        await abrirOuFocarPainel();
+        const sheetId = item.metadata.sheetId;
+
+        localStorage.setItem("solaria_acao_pendente", JSON.stringify({
+          tipo: "FOCAR_FICHA",
+          sheetId: sheetId,
+          timestamp: Date.now()
+        }));
+
+        try {
+          await OBR.broadcast.sendMessage("solaria/focar-ficha-token", { sheetId });
+        } catch (_) {}
+        return;
+      }
+
+      if (item.metadata?.[METADATA_HUD_KEY]) {
+        await OBR.player.deselect();
+        const { sheetId, statId, statLabel, statCor } = item.metadata;
+        const query = new URLSearchParams({
+          sheetId,
+          statId,
+          label: statLabel || statId.toUpperCase(),
+          cor: statCor || "#7aa2f7"
+        }).toString();
+
+        await OBR.popover.open({
+          id: ID_QUICK_STAT,
+          url: BASE_URL + `/painel/fichas/quick-stat.html?${query}`,
+          width: 210,
+          height: 115,
+          anchorElementId: item.id,
+          anchorOrigin: { horizontal: "CENTER", vertical: "TOP" },
+          transformOrigin: { horizontal: "CENTER", vertical: "BOTTOM" }
+        });
+      }
+    } catch (_) {}
+  });
+});
+
+=== ARQUIVO: \manifest.json ===
+{
+  "manifest_version": 1,
+  "name": "Solaria Companion",
+  "version": "1.0.0",
+  "description": "Extensão para Solaria no Owlbear Rodeo",
+  "author": "Nicolas Arths",
+  "icon": "/vite.svg",
+  "action": {
+    "title": "Solaria Companion",
+    "icon": "/solaria-companion/favicon.svg",
+    "popover": "/solaria-companion/index.html",
+    "height": 500,
+    "width": 360
+  }
+}
+
+=== ARQUIVO: \menu\criar-ficha.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+
+export const criarFichaOption = {
+  id: "solaria/context-menu-criar-ficha",
+  roleRequired: "GM",
+  config: {
+    icons: [
+      {
+        icon: "/favicon.svg",
+        label: "Criar Ficha",
+        filter: {
+          every: [
+            { key: "layer", value: "CHARACTER", coordinator: "||" },
+            { key: "layer", value: "PROP", coordinator: "||" },
+            { key: "type", value: "IMAGE" }
+          ],
+          permissions: ["UPDATE"]
+        }
+      }
+    ]
+  },
+  async onClick(context, helpers) {
+    const item = context.items[0];
+    if (!item) return;
+
+    const tokenId = item.id;
+    // Prioriza o nome ou rótulo de texto atribuído ao token no mapa
+    const tokenNome = item.text?.plainText || (item.name && item.name !== "Image" ? item.name : "") || item.name || "Novo Token";
+
+    // 1. Salva a intenção no localStorage para não perder a ação se o painel estiver abrindo
+    localStorage.setItem("solaria_acao_pendente", JSON.stringify({
+      tipo: "CRIAR_FICHA",
+      tokenId,
+      tokenNome,
+      timestamp: Date.now()
+    }));
+
+    // 2. Garante que o painel seja aberto
+    if (helpers?.abrirOuFocarPainel) {
+      await helpers.abrirOuFocarPainel();
+    }
+
+    // 3. Emite broadcast imediato caso o painel já esteja carregado e aberto na tela
+    try {
+      await OBR.broadcast.sendMessage("solaria/criar-ficha-token", {
+        tokenId,
+        tokenNome
+      });
+    } catch (_) {}
+  }
+};
+
+=== ARQUIVO: \menu\options.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { criarFichaOption } from "./criar-ficha.js";
+
+// Lista central de todas as opções de menu de contexto da extensão
+const listaOpcoes = [
+  criarFichaOption
+];
+
+export async function registrarMenusContexto(helpers) {
+  const currentRole = await OBR.player.getRole();
+
+  for (const item of listaOpcoes) {
+    // Filtra opções restritas ao Mestre
+    if (item.roleRequired && item.roleRequired !== currentRole) {
+      continue;
+    }
+
+    OBR.contextMenu.create({
+      id: item.id,
+      icons: item.config.icons,
+      onClick: async (context) => {
+        await item.onClick(context, helpers);
+      }
+    });
+  }
+}
+
+=== ARQUIVO: \modulos.json ===
+{
+  "anotacoes": {
+    "temCustomJS": true,
+    "registros": []
+  },
+  "fichas": {
+    "temCustomJS": true,
+    "registros": [
+      {
+        "id": "guarda-1",
+        "nome": "Guarda de Solaria",
+        "tag": "NPC",
+        "visivelPlayer": true,
+        "desc": "HP: 25 | Defesa: 14 | Lança Solar (1d8+2).",
+        "segredoGM": "Subornável por 15 moedas de ouro."
+      }
+    ]
+  },
+  "itens": {
+    "temCustomJS": false,
+    "registros": []
+  }
+}
+
+=== ARQUIVO: \painel\anotacoes\attachments.js ===
+/**
+ * Componente de Referências Rápidas Anexadas ao Diário
+ */
+export function criarSecaoAnexos(Estado) {
+  let anexos = JSON.parse(localStorage.getItem("solaria_anexos") || "[]");
+
+  const secao = document.createElement("div");
+  secao.className = "attachments-card";
+  secao.innerHTML = `
+    <div class="attachments-label">
+      <span>📎 Referências Rápidas Anexadas</span>
+    </div>
+    <div class="attachments-controls">
+      <select id="select-entity" class="custom-select"></select>
+      <button type="button" id="btn-add-ref" class="btn-attach-action">+ Anexar</button>
+    </div>
+    <div id="chips-container" class="chips-flow"></div>
+  `;
+
+  const select = secao.querySelector("#select-entity");
+  const chipsContainer = secao.querySelector("#chips-container");
+
+  function popularOpcoes() {
+    select.innerHTML = "";
+
+    const fichasCustom = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    fichasCustom
+      .filter(f => Estado.role === "GM" || f.visivelPlayer)
+      .forEach(f => {
+        const opt = document.createElement("option");
+        opt.value = JSON.stringify({ id: f.id, nome: f.nome, aba: "fichas" });
+        opt.textContent = `[FICHA] ${f.nome}`;
+        select.appendChild(opt);
+      });
+
+    Object.entries(Estado.modulos || {}).forEach(([aba, dados]) => {
+      if (aba === "anotacoes" || aba === "fichas") return;
+      (dados.registros || [])
+        .filter(i => Estado.role === "GM" || i.visivelPlayer)
+        .forEach(item => {
+          const opt = document.createElement("option");
+          opt.value = JSON.stringify({ id: item.id, nome: item.nome, aba });
+          opt.textContent = `[${aba.toUpperCase()}] ${item.nome}`;
+          select.appendChild(opt);
+        });
+    });
+  }
+
+  function renderizarChips() {
+    chipsContainer.innerHTML = "";
+    if (!anexos.length) {
+      chipsContainer.innerHTML = `<span style="font-size:11px; color:#565f89; padding:2px;">Nenhum atalho fixado.</span>`;
+      return;
+    }
+
+    anexos.forEach((anexo, idx) => {
+      const chip = document.createElement("div");
+      chip.className = "chip-badge";
+
+      let catClass = "cat-default";
+      if (anexo.aba === "fichas") catClass = "cat-fichas";
+      else if (anexo.aba === "itens") catClass = "cat-itens";
+      else if (anexo.aba === "locais") catClass = "cat-locais";
+
+      chip.innerHTML = `
+        <span class="chip-tag-category ${catClass}">${anexo.aba}</span>
+        <span>${anexo.nome}</span>
+        <span class="chip-close" data-idx="${idx}" title="Remover">×</span>
+      `;
+
+      chip.addEventListener("click", (e) => {
+        if (e.target.classList.contains("chip-close")) {
+          anexos.splice(idx, 1);
+          localStorage.setItem("solaria_anexos", JSON.stringify(anexos));
+          renderizarChips();
+          return;
+        }
+        if (typeof Estado.irParaCard === "function") {
+          Estado.irParaCard(anexo.aba, anexo.id);
+        }
+      });
+
+      chipsContainer.appendChild(chip);
+    });
+  }
+
+  secao.querySelector("#btn-add-ref").addEventListener("click", () => {
+    if (!select.value) return;
+    const item = JSON.parse(select.value);
+    if (!anexos.some(a => a.id === item.id)) {
+      anexos.push(item);
+      localStorage.setItem("solaria_anexos", JSON.stringify(anexos));
+      renderizarChips();
+    }
+  });
+
+  popularOpcoes();
+  renderizarChips();
+
+  return secao;
+}
+
+=== ARQUIVO: \painel\anotacoes\module.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { NotesStore } from "./notes-store.js";
+import { criarGerenciadorNotas } from "./notes-list.js";
+import { SolariaSync } from "../../core/sync.js";
+
+/**
+ * Ponto de entrada da aba de Anotações (Solaria)
+ */
+export function render(container, Estado) {
+  if (!document.getElementById("css-anotacoes")) {
+    const link = document.createElement("link");
+    link.id = "css-anotacoes";
+    link.rel = "stylesheet";
+    link.href = "./anotacoes/style.css";
+    document.head.appendChild(link);
+  }
+
+  NotesStore.carregar();
+
+  container.innerHTML = "";
+
+  const isGM = Estado.role === "GM";
+
+  const layout = document.createElement("div");
+  layout.className = "notes-module-layout";
+  layout.innerHTML = `
+    <div class="notes-topbar">
+      <span class="notes-topbar-title">Diário & Anotações</span>
+      ${isGM ? `<button type="button" id="btn-add-note" class="btn-nova-nota">+ Nova Anotação</button>` : ""}
+    </div>
+    <div id="notes-cards-container" class="notes-cards-list"></div>
+  `;
+  container.appendChild(layout);
+
+  const containerCards = layout.querySelector("#notes-cards-container");
+  const gerenciador = criarGerenciadorNotas(containerCards, Estado);
+
+  if (isGM) {
+    layout.querySelector("#btn-add-note")?.addEventListener("click", () => {
+      gerenciador.adicionarNota();
+    });
+  }
+
+  // Sincronização contínua com os metadados da sala
+  SolariaSync.iniciarOuvinteSala({
+    onNotasRecebidas: (notasPublicas) => {
+      if (Estado.realRole !== "GM") {
+        NotesStore.mesclarNotasPublicas(notasPublicas);
+        gerenciador.renderizar();
+      }
+    }
+  });
+
+  // Atualização em tempo real quando aberto no navegador do Jogador
+  OBR.broadcast.onMessage("solaria/nota-sync", () => {
+    NotesStore.carregar();
+    gerenciador.renderizar();
+  });
+
+  OBR.broadcast.onMessage("solaria/nota-excluida", () => {
+    NotesStore.carregar();
+    gerenciador.renderizar();
+  });
+
+  gerenciador.renderizar();
+}
+
+=== ARQUIVO: \painel\anotacoes\note-card.js ===
+import { criarRichEditor } from "../../ui/rich-editor.js";
+
+export function criarCardNota({
+  nota,
+  role,
+  aberta,
+  fichasDisponiveis = [],
+  onToggle,
+  onTituloChange,
+  onConteudoChange,
+  onAnexosChange,
+  onVisibilidadeChange,
+  onExcluir,
+  onNavegarFicha
+}) {
+  const isGM = role === "GM";
+  const isVisivel = nota.visivelPlayer === true;
+
+  const card = document.createElement("div");
+  card.className = `note-card ${aberta ? "" : "is-collapsed"}`;
+  card.id = `note-card-${nota.id}`;
+
+  card.innerHTML = `
+    <div class="note-card-header">
+      <button type="button" class="btn-collapse-arrow" title="Colapsar / Expandir">▼</button>
+      <input type="text" class="note-title-input" value="${nota.titulo || "Sem Título"}" placeholder="Título da anotação..." ${!isGM ? "readonly" : ""}>
+      
+      ${isGM ? `
+        <button type="button" class="btn-toggle-visibilidade" title="${isVisivel ? "Visível para jogadores (clique para ocultar)" : "Oculto para jogadores (clique para revelar)"}" style="background:transparent; border:none; cursor:pointer; font-size:12px; margin:0 4px; padding:2px;">
+          ${isVisivel ? "👁️" : "🔒"}
+        </button>
+      ` : ""}
+      
+      <span class="note-save-badge">${isGM ? "● Guardado" : ""}</span>
+      ${isGM ? `<button type="button" class="btn-delete-note" title="Clique duas vezes para excluir">✕</button>` : ""}
+    </div>
+    <div class="note-card-body">
+      <div class="note-editor-slot"></div>
+      <div class="note-attachments-bar">
+        <span class="note-attach-label">📎 Anexos:</span>
+        <div class="note-chips-container"></div>
+        ${isGM ? `
+          <div class="attach-dropdown-wrapper">
+            <button type="button" class="btn-add-chip-trigger">+ Anexar Ficha</button>
+            <div class="attach-popup-menu"></div>
+          </div>
+        ` : ""}
+      </div>
+    </div>
+  `;
+
+  const header = card.querySelector(".note-card-header");
+  const titleInput = card.querySelector(".note-title-input");
+  const saveBadge = card.querySelector(".note-save-badge");
+  const deleteBtn = card.querySelector(".btn-delete-note");
+  const editorSlot = card.querySelector(".note-editor-slot");
+  const chipsContainer = card.querySelector(".note-chips-container");
+  const triggerBtn = card.querySelector(".btn-add-chip-trigger");
+  const popupMenu = card.querySelector(".attach-popup-menu");
+  const btnVisibilidade = card.querySelector(".btn-toggle-visibilidade");
+
+  const editor = criarRichEditor({
+    placeholder: "Registe pistas, ideias, regras ou tarefas...",
+    valorInicial: nota.conteudo,
+    onSalvar: (novoConteudo) => {
+      if (!isGM) return;
+      saveBadge.textContent = "● Guardado";
+      saveBadge.style.color = "#9ece6a";
+      if (typeof onConteudoChange === "function") {
+        onConteudoChange(novoConteudo);
+      }
+    }
+  });
+  editorSlot.appendChild(editor.elemento);
+
+  // Travar editor para jogadores
+  if (!isGM) {
+    const editorBody = editorSlot.querySelector("[contenteditable]");
+    if (editorBody) editorBody.setAttribute("contenteditable", "false");
+    const toolbar = editorSlot.querySelector(".solaria-editor-toolbar");
+    if (toolbar) toolbar.style.display = "none";
+  }
+
+  function renderizarChips() {
+    chipsContainer.innerHTML = "";
+    const anexos = Array.isArray(nota.anexos) ? nota.anexos : [];
+
+    anexos.forEach((anexo, idx) => {
+      const chip = document.createElement("div");
+      chip.className = "note-chip";
+      chip.innerHTML = `
+        <span class="chip-text">${anexo.nome}</span>
+        ${isGM ? `<span class="chip-remove" title="Desanexar">×</span>` : ""}
+      `;
+
+      chip.addEventListener("click", (e) => {
+        if (isGM && e.target.classList.contains("chip-remove")) {
+          e.stopPropagation();
+          anexos.splice(idx, 1);
+          nota.anexos = anexos;
+          renderizarChips();
+          if (typeof onAnexosChange === "function") {
+            onAnexosChange(anexos);
+          }
+          return;
+        }
+        if (typeof onNavegarFicha === "function") {
+          onNavegarFicha(anexo.id);
+        }
+      });
+      chipsContainer.appendChild(chip);
+    });
+  }
+
+  function preencherPopupFichas() {
+    if (!popupMenu) return;
+    popupMenu.innerHTML = "";
+    const anexosAtuais = Array.isArray(nota.anexos) ? nota.anexos : [];
+    const fichasFiltradas = fichasDisponiveis.filter(f => !anexosAtuais.some(a => a.id === f.id));
+
+    if (!fichasFiltradas.length) {
+      popupMenu.innerHTML = `<div class="popup-item-empty">Todas as fichas já anexadas.</div>`;
+      return;
+    }
+
+    fichasFiltradas.forEach(f => {
+      const itemBtn = document.createElement("button");
+      itemBtn.type = "button";
+      itemBtn.className = "popup-item-btn";
+      itemBtn.innerHTML = `<span>👤 ${f.nome}</span>`;
+
+      itemBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!Array.isArray(nota.anexos)) nota.anexos = [];
+        nota.anexos.push({ id: f.id, nome: f.nome, aba: "fichas" });
+        popupMenu.classList.remove("is-open");
+        renderizarChips();
+        if (typeof onAnexosChange === "function") {
+          onAnexosChange(nota.anexos);
+        }
+      });
+      popupMenu.appendChild(itemBtn);
+    });
+  }
+
+  if (isGM && triggerBtn) {
+    triggerBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const jaAberto = popupMenu.classList.contains("is-open");
+      document.querySelectorAll(".attach-popup-menu.is-open").forEach(p => p.classList.remove("is-open"));
+
+      if (!jaAberto) {
+        preencherPopupFichas();
+        popupMenu.classList.add("is-open");
+      }
+    });
+
+    popupMenu.addEventListener("click", (e) => e.stopPropagation());
+    document.addEventListener("click", (e) => {
+      if (!popupMenu.contains(e.target) && e.target !== triggerBtn) {
+        popupMenu.classList.remove("is-open");
+      }
+    });
+  }
+
+  header.addEventListener("click", (e) => {
+    if (
+      e.target === titleInput || 
+      e.target === deleteBtn || 
+      deleteBtn?.contains(e.target) || 
+      e.target.closest(".btn-toggle-visibilidade")
+    ) return;
+    
+    const isCollapsed = card.classList.toggle("is-collapsed");
+    if (typeof onToggle === "function") onToggle(!isCollapsed);
+  });
+
+  if (isGM) {
+    btnVisibilidade?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof onVisibilidadeChange === "function") onVisibilidadeChange();
+    });
+
+    let debounceTimer;
+    titleInput.addEventListener("input", (e) => {
+      saveBadge.textContent = "● A guardar...";
+      saveBadge.style.color = "#e0af68";
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const novoTitulo = e.target.value.trim() || "Sem Título";
+        saveBadge.textContent = "● Guardado";
+        saveBadge.style.color = "#9ece6a";
+        if (typeof onTituloChange === "function") onTituloChange(novoTitulo);
+      }, 400);
+    });
+
+    let resetDeleteTimer = null;
+    deleteBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (deleteBtn.classList.contains("confirm-delete")) {
+        clearTimeout(resetDeleteTimer);
+        deleteBtn.classList.remove("confirm-delete");
+        deleteBtn.textContent = "✕";
+        if (typeof onExcluir === "function") onExcluir();
+        return;
+      }
+      deleteBtn.classList.add("confirm-delete");
+      deleteBtn.textContent = "Excluir?";
+      resetDeleteTimer = setTimeout(() => {
+        deleteBtn.classList.remove("confirm-delete");
+        deleteBtn.textContent = "✕";
+      }, 3000);
+    });
+  }
+
+  renderizarChips();
+  return card;
+}
+
+=== ARQUIVO: \painel\anotacoes\notes-list.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { NotesStore } from "./notes-store.js";
+import { criarCardNota } from "./note-card.js";
+
+export function criarGerenciadorNotas(containerCards, Estado) {
+  const STORAGE_ABERTURA = "solaria_notas_estados_abertura";
+  const estadosAbertura = JSON.parse(localStorage.getItem(STORAGE_ABERTURA) || "{}");
+
+  function obterFichasDisponiveis() {
+    const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    return fichas.filter(f => Estado.role === "GM" || f.visivelPlayer !== false);
+  }
+
+  function salvarEstados() {
+    localStorage.setItem(STORAGE_ABERTURA, JSON.stringify(estadosAbertura));
+  }
+
+  function renderizar() {
+    containerCards.innerHTML = "";
+    const isGM = Estado.role === "GM";
+
+    // Filtra as notas: Mestre vê todas; Jogador vê apenas as visíveis
+    const notasFiltradas = NotesStore.notas.filter(n => isGM || n.visivelPlayer === true);
+
+    if (!notasFiltradas.length) {
+      containerCards.innerHTML = `
+        <div style="text-align: center; color: #565f89; padding: 24px; font-size: 12px;">
+          Nenhuma anotação disponível. ${isGM ? "Clique em <b>+ Nova Anotação</b> acima." : ""}
+        </div>
+      `;
+      return;
+    }
+
+    const fichas = obterFichasDisponiveis();
+
+    notasFiltradas.forEach((nota, idx) => {
+      if (estadosAbertura[nota.id] === undefined) {
+        estadosAbertura[nota.id] = idx === 0;
+      }
+      const aberta = estadosAbertura[nota.id];
+
+      const card = criarCardNota({
+        nota,
+        aberta,
+        role: Estado.role,
+        fichasDisponiveis: fichas,
+        onToggle: (estaAberta) => {
+          estadosAbertura[nota.id] = estaAberta;
+          salvarEstados();
+        },
+        onVisibilidadeChange: async () => {
+          const novaVisibilidade = !nota.visivelPlayer;
+          NotesStore.atualizarNota(nota.id, { visivelPlayer: novaVisibilidade });
+          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || { ...nota, visivelPlayer: novaVisibilidade };
+
+          try {
+            if (novaVisibilidade) {
+              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+            } else {
+              await OBR.broadcast.sendMessage("solaria/nota-excluida", nota.id);
+            }
+          } catch (_) {}
+
+          renderizar();
+        },
+        onTituloChange: async (novoTitulo) => {
+          NotesStore.atualizarNota(nota.id, { titulo: novoTitulo });
+          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
+          if (notaAtualizada.visivelPlayer) {
+            try {
+              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+            } catch (_) {}
+          }
+        },
+        onConteudoChange: async (novoConteudo) => {
+          NotesStore.atualizarNota(nota.id, { conteudo: novoConteudo });
+          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
+          if (notaAtualizada.visivelPlayer) {
+            try {
+              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+            } catch (_) {}
+          }
+        },
+        onAnexosChange: async (novosAnexos) => {
+          NotesStore.atualizarNota(nota.id, { anexos: novosAnexos });
+          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
+          if (notaAtualizada.visivelPlayer) {
+            try {
+              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+            } catch (_) {}
+          }
+        },
+        onExcluir: async () => {
+          const idExcluir = nota.id;
+          delete estadosAbertura[idExcluir];
+          salvarEstados();
+          NotesStore.excluirNota(idExcluir);
+
+          try {
+            await OBR.broadcast.sendMessage("solaria/nota-excluida", idExcluir);
+          } catch (_) {}
+
+          renderizar();
+        },
+        onNavegarFicha: (sheetId) => {
+          if (typeof Estado.irParaCard === "function") {
+            Estado.irParaCard("fichas", sheetId);
+          } else {
+            document.querySelector('[data-tab="fichas"]')?.click();
+            setTimeout(() => {
+              const el = document.getElementById(`card-${sheetId}`);
+              if (el) {
+                el.classList.add("is-open");
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+              }
+            }, 100);
+          }
+        }
+      });
+
+      containerCards.appendChild(card);
+    });
+  }
+
+  function adicionarNota() {
+    const nova = NotesStore.criarNovaNota("Nova Anotação");
+    estadosAbertura[nova.id] = true;
+    salvarEstados();
+    renderizar();
+
+    setTimeout(() => {
+      const cardNovo = document.getElementById(`note-card-${nova.id}`);
+      if (cardNovo) {
+        cardNovo.scrollIntoView({ behavior: "smooth", block: "start" });
+        const input = cardNovo.querySelector(".note-title-input");
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }
+    }, 50);
+  }
+
+  return {
+    renderizar,
+    adicionarNota
+  };
+}
+
+=== ARQUIVO: \painel\anotacoes\notes-store.js ===
+import { SolariaSync } from "../../core/sync.js";
+
+const STORAGE_KEY = "solaria_notas_multiplas";
+
+export const NotesStore = {
+  notas: [],
+  idAtiva: null,
+
+  carregar() {
+    try {
+      const salvas = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if (Array.isArray(salvas)) {
+        this.notas = salvas;
+      } else {
+        const antiga = localStorage.getItem("solaria_notas") || "";
+        this.notas = [
+          {
+            id: "note_" + Date.now(),
+            titulo: "Diário de Campanha",
+            conteudo: antiga,
+            visivelPlayer: false,
+            atualizadaEm: Date.now()
+          }
+        ];
+        this.salvar();
+      }
+    } catch (_) {
+      this.notas = [];
+    }
+
+    if (!this.idAtiva || !this.notas.some(n => String(n.id) === String(this.idAtiva))) {
+      this.idAtiva = this.notas[0]?.id || null;
+    }
+    return this.notas;
+  },
+
+  salvar(notificarSala = true) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.notas));
+    if (notificarSala) {
+      SolariaSync.sincronizarNotasComSala(this.notas);
+    }
+  },
+
+  obterAtiva() {
+    return this.notas.find(n => String(n.id) === String(this.idAtiva)) || null;
+  },
+
+  definirAtiva(id) {
+    this.idAtiva = id;
+  },
+
+  criarNovaNota(titulo = "Nova Anotação") {
+    const nova = {
+      id: "note_" + Date.now(),
+      titulo,
+      conteudo: "",
+      visivelPlayer: false,
+      atualizadaEm: Date.now()
+    };
+    this.notas.unshift(nova);
+    this.idAtiva = nova.id;
+    this.salvar(true);
+    return nova;
+  },
+
+  atualizarNota(id, dados) {
+    const nota = this.notas.find(n => String(n.id) === String(id));
+    if (!nota) return;
+    Object.assign(nota, dados, { atualizadaEm: Date.now() });
+    this.salvar(true);
+  },
+
+  excluirNota(id) {
+    this.notas = this.notas.filter(n => String(n.id) !== String(id));
+    if (String(this.idAtiva) === String(id)) {
+      this.idAtiva = this.notas[0]?.id || null;
+    }
+    this.salvar(true);
+  },
+
+  /**
+   * Mescla notas públicas recebidas do Room Metadata
+   */
+  mesclarNotasPublicas(notasPublicas = []) {
+    this.notas = notasPublicas;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.notas));
+  }
+};
+
+=== ARQUIVO: \painel\anotacoes\style.css ===
+.notes-module-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 12px;
+  font-family: inherit;
+  color: #c0caf5;
+  overflow: hidden;
+}
+
+/* Barra Superior */
+.notes-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 4px;
+}
+
+.notes-topbar-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+  color: #7982a9;
+}
+
+.btn-nova-nota {
+  background: linear-gradient(135deg, #7aa2f7, #bb9af7);
+  color: #16161e;
+  border: none;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.btn-nova-nota:hover { opacity: 0.92; }
+.btn-nova-nota:active { transform: scale(0.97); }
+
+/* Lista com Scroll das Notas */
+.notes-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.notes-cards-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.notes-cards-list::-webkit-scrollbar-thumb {
+  background: #2f354d;
+  border-radius: 4px;
+}
+
+/* Cartão Individual de Anotação (Sem overflow: hidden para permitir popups livres) */
+.note-card {
+  background: #16161e;
+  border: 1px solid #2f354d;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.2s;
+  position: relative;
+}
+
+.note-card:focus-within {
+  border-color: #7aa2f7;
+}
+
+/* Cabeçalho do Cartão */
+.note-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #1a1b26;
+  border-bottom: 1px solid #24283b;
+  border-radius: 7px 7px 0 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.note-card.is-collapsed .note-card-header {
+  border-bottom: none;
+  border-radius: 7px;
+}
+
+.btn-collapse-arrow {
+  background: transparent;
+  border: none;
+  color: #7aa2f7;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note-card.is-collapsed .btn-collapse-arrow {
+  transform: rotate(-90deg);
+}
+
+.note-title-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: #c0caf5;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  padding: 2px 4px;
+  transition: border-color 0.2s;
+  cursor: text;
+}
+
+.note-title-input:focus {
+  border-bottom-color: #7aa2f7;
+  background: #16161e;
+}
+
+.note-save-badge {
+  font-size: 10px;
+  color: #9ece6a;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.btn-delete-note {
+  background: transparent;
+  border: none;
+  color: #565f89;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.btn-delete-note:hover {
+  color: #f7768e;
+  background: rgba(247, 118, 142, 0.15);
+}
+
+.btn-delete-note.confirm-delete {
+  background: #f7768e;
+  color: #16161e;
+  font-weight: 700;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  animation: pulse-delete 0.2s ease-in-out;
+}
+
+.btn-delete-note.confirm-delete:hover {
+  background: #f55373;
+  color: #ffffff;
+}
+
+@keyframes pulse-delete {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* Corpo Colapsável do Cartão */
+.note-card-body {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.note-card.is-collapsed .note-card-body {
+  display: none;
+}
+
+/* Editor Universal Integrado */
+.solaria-editor-container {
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.solaria-editor-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 5px 8px;
+  background: #13141c;
+  border-bottom: 1px solid #24283b;
+  align-items: center;
+}
+
+.ed-btn {
+  background: transparent;
+  border: none;
+  color: #a9b1d6;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ed-btn:hover {
+  background: #24283b;
+  color: #fff;
+}
+
+.ed-divider {
+  width: 1px;
+  height: 14px;
+  background: #2f354d;
+  margin: 0 3px;
+}
+
+.solaria-editor-body {
+  padding: 10px 12px;
+  color: #c0caf5;
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+  min-height: 90px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.solaria-editor-body[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: #565f89;
+  pointer-events: none;
+}
+
+.solaria-editor-body ul {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+/* Checklist Interativo */
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+.todo-check {
+  cursor: pointer;
+  margin-top: 3px;
+  accent-color: #7aa2f7;
+}
+
+.todo-item.completed {
+  text-decoration: line-through;
+  color: #565f89;
+}
+
+.todo-item.completed span {
+  text-decoration: line-through;
+}
+
+/* Barra de Anexos no Rodapé de cada Nota */
+.note-attachments-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #14161f;
+  border-top: 1px solid #24283b;
+  border-radius: 0 0 7px 7px;
+  position: relative;
+}
+
+.note-attach-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #565f89;
+  user-select: none;
+}
+
+.note-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.note-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #1f2335;
+  border: 1px solid #3b4261;
+  color: #bb9af7;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.note-chip:hover {
+  background: #24283b;
+  border-color: #bb9af7;
+  color: #c0caf5;
+  transform: translateY(-1px);
+}
+
+.note-chip .chip-remove {
+  font-size: 12px;
+  color: #7982a9;
+  line-height: 1;
+  border-radius: 50%;
+  padding: 1px 3px;
+  transition: color 0.15s;
+}
+
+.note-chip .chip-remove:hover {
+  color: #f7768e;
+}
+
+/* Wrapper do Dropdown */
+.attach-dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.btn-add-chip-trigger {
+  background: transparent;
+  border: 1px dashed #414868;
+  color: #7aa2f7;
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-add-chip-trigger:hover {
+  border-color: #7aa2f7;
+  background: rgba(122, 162, 247, 0.1);
+  color: #fff;
+}
+
+/* Popup Menuzinho: Agora abre para CIMA (bottom: calc(100% + 6px)) e fica sempre visível */
+.attach-popup-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  top: auto;
+  left: 0;
+  background: #1a1b26;
+  border: 1px solid #3b4261;
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.55);
+  border-radius: 6px;
+  min-width: 170px;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  padding: 4px;
+}
+
+.attach-popup-menu.is-open {
+  display: flex;
+}
+
+.popup-item-btn {
+  background: transparent;
+  border: none;
+  color: #c0caf5;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.popup-item-btn:hover {
+  background: #24283b;
+  color: #7aa2f7;
+}
+
+.popup-item-empty {
+  font-size: 10px;
+  color: #565f89;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+=== ARQUIVO: \painel\fichas\calc.js ===
+/**
+ * Avalia expressões matemáticas simples sem usar eval inseguro.
+ * Suporta +, -, *, / e parênteses.
+ */
+function avaliarExpressaoMatematica(expr) {
+  // Higieniza: permite apenas números e operadores matemáticos válidos
+  const limpa = expr.replace(/[^0-9+\-*/().]/g, "");
+  if (!limpa) return null;
+
+  try {
+    // Parser seguro via Function construtora isolada
+    const resultado = new Function(`return (${limpa})`)();
+    return typeof resultado === "number" && !isNaN(resultado) ? resultado : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Aplica o cálculo no atributo com base na entrada do usuário:
+ * - Se começar com '+' ou '-': soma/subtrai do valor atual (ex: "-10", "+5", "-10/2")
+ * - Se começar com '*' ou '/': multiplica/divide o valor atual (ex: "*2", "/2")
+ * - Se for valor absoluto (ex: "50", "20+5"): define diretamente o resultado
+ *
+ * @param {number|string} valorAtual - O valor que o campo possui no momento
+ * @param {string} inputDigitado - O que o usuário escreveu no input
+ * @returns {number} O novo valor arredondado
+ */
+export function calcularNovoStat(valorAtual, inputDigitado) {
+  const atual = parseFloat(valorAtual) || 0;
+  const texto = String(inputDigitado).trim();
+
+  if (!texto) return atual;
+
+  const primeiroChar = texto.charAt(0);
+
+  // Caso 1: Operações relativas ao valor atual (+, -, *, /)
+  if (primeiroChar === "+" || primeiroChar === "-") {
+    const delta = avaliarExpressaoMatematica(texto);
+    if (delta !== null) {
+      return Math.round(atual + delta);
+    }
+  } else if (primeiroChar === "*" || primeiroChar === "/") {
+    const resultado = avaliarExpressaoMatematica(`${atual} ${texto}`);
+    if (resultado !== null) {
+      return Math.round(resultado);
+    }
+  }
+
+  // Caso 2: Valor absoluto (ex: digitou apenas "15" ou uma conta direta "10+5")
+  const valorDireto = avaliarExpressaoMatematica(texto);
+  return valorDireto !== null ? Math.round(valorDireto) : atual;
+}
+
+=== ARQUIVO: \painel\fichas\card.js ===
+import { renderStatsCard } from "./stats.js";
+import { renderHistoricoCard } from "./historico.js";
+import { renderHabilidadesCard } from "./habilidades.js";
+import { renderInventarioCard } from "./inventario.js";
+import { selecionarTokenNoGrid, desvincularToken, obterDadosTokenSelecionado, vincularTokenAoId } from "./obr-sync.js";
+import { atualizarHudToken, removerHudToken } from "./token-hud.js";
+
+// 🧩 COMPONENTE REUTILIZÁVEL: Pode ser importado noutros módulos
+export function UI_BotaoVisibilidade(isVisivel, classExtra = "btn-icon-action") {
+  return `
+    <button type="button" class="${classExtra} btn-toggle-visibilidade" title="${isVisivel ? "Visível para jogadores (clique para ocultar)" : "Oculto para jogadores (clique para revelar)"}">
+      ${isVisivel ? "👁️" : "🔒"}
+    </button>
+  `;
+}
+
+export function criarElementoCard(f, role, acoes) {
+  const isGM = role === "GM";
+  const isVisivel = f.visivelPlayer !== false;
+
+  // Bloqueio Rigoroso: Se não for GM e a ficha estiver oculta, morre aqui e não renderiza nada.
+  if (!isGM && !isVisivel) {
+    const placeholder = document.createElement("div");
+    placeholder.style.display = "none";
+    return placeholder;
+  }
+
+  const card = document.createElement("div");
+  card.className = "sheet-card";
+  card.id = `card-${f.id}`;
+
+  card.innerHTML = `
+    <div class="sheet-card-header">
+      <div class="sheet-title">
+        <span>${f.nome}</span>
+      </div>
+      <div class="sheet-actions">
+        <span class="sheet-tag-badge">${f.tag || "NPC"}</span>
+        ${isGM ? `
+          ${UI_BotaoVisibilidade(isVisivel)}
+          <button type="button" class="btn-icon-action btn-edit" title="Editar Ficha">✏️</button>
+        ` : ""}
+      </div>
+    </div>
+
+    ${isGM ? `
+      <div class="token-link-row">
+        <div class="token-link-status">
+          ${f.tokenId ? `
+            <span class="token-badge-active btn-select-token" title="Selecionar no mapa">🎯 ${f.tokenNome || "Token"}</span>
+            <button type="button" class="btn-token-unlink" title="Desvincular token">×</button>
+          ` : `<span style="color:var(--text-muted);">Sem token no mapa</span>`}
+        </div>
+        <button type="button" class="btn-token-link btn-bind-token">${f.tokenId ? "Alterar Token" : "🎯 Vincular Token"}</button>
+      </div>
+    ` : (f.tokenId ? `
+      <div class="token-link-row">
+        <div class="token-link-status">
+          <span class="token-badge-active btn-select-token" title="Selecionar no mapa">🎯 ${f.tokenNome || "Token"}</span>
+        </div>
+      </div>
+    ` : "")}
+
+    ${renderStatsCard(f.stats, f.id)}
+
+    <div class="sheet-body-content">
+      ${renderHistoricoCard(f.historico)}
+      ${renderHabilidadesCard(f.habilidades)}
+      ${renderInventarioCard(f.inventario)}
+    </div>
+  `;
+
+  if (!isGM) {
+    card.querySelectorAll(".stat-calc-input, input").forEach(input => {
+      input.setAttribute("readonly", "true");
+      input.style.cursor = "default";
+      input.style.border = "none";
+      input.style.background = "transparent";
+    });
+  }
+
+  card.querySelector(".sheet-card-header").addEventListener("click", (e) => {
+    if (
+      e.target.closest(".btn-edit") ||
+      e.target.closest(".btn-toggle-visibilidade") ||
+      e.target.closest(".token-link-row") ||
+      e.target.closest(".stat-calc-input")
+    ) return;
+    
+    card.classList.toggle("is-open");
+  });
+
+  card.querySelector(".btn-select-token")?.addEventListener("click", () => selecionarTokenNoGrid(f.tokenId));
+
+  if (isGM) {
+    card.querySelector(".btn-toggle-visibilidade")?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      f.visivelPlayer = !isVisivel;
+      acoes.onAtualizar(f); // Passa a ficha atualizada para sincronizar na rede
+      await atualizarHudToken(f);
+    });
+
+    card.querySelector(".btn-edit")?.addEventListener("click", () => acoes.onEditar(f));
+
+    card.querySelector(".btn-token-unlink")?.addEventListener("click", async () => {
+      const idParaRemover = f.tokenId;
+      f.tokenId = null;
+      f.tokenNome = null;
+      acoes.onAtualizar(f);
+
+      if (idParaRemover) {
+        await removerHudToken(idParaRemover);
+        await desvincularToken(idParaRemover);
+      }
+    });
+
+    card.querySelector(".btn-bind-token")?.addEventListener("click", async () => {
+      const token = await obterDadosTokenSelecionado();
+      if (!token) {
+        alert("Selecione primeiro o token no mapa do Owlbear Rodeo!");
+        return;
+      }
+      f.tokenId = token.tokenId;
+      f.tokenNome = token.tokenNome;
+      acoes.onAtualizar(f);
+
+      await vincularTokenAoId(token.tokenId, f.id);
+      await atualizarHudToken(f);
+    });
+  }
+
+  return card;
+}
+
+=== ARQUIVO: \painel\fichas\form.js ===
+import { renderStatsForm, getStatsFormData } from "./stats.js";
+import { renderHistoricoForm, getHistoricoFormData } from "./historico.js";
+import { renderHabilidadesForm, getHabilidadesFormData } from "./habilidades.js";
+import { renderInventarioForm, getInventarioFormData } from "./inventario.js";
+import { vincularTokenAoId, desvincularToken } from "./obr-sync.js";
+
+export function renderFormulario(container, ficha, onVoltar, onSalvar, onExcluir) {
+  const editando = Boolean(ficha && ficha.criada);
+  const dados = ficha ? JSON.parse(JSON.stringify(ficha)) : {
+    id: "f_" + Date.now(),
+    nome: "",
+    tag: "NPC",
+    visivelPlayer: true,
+    stats: { pv: "20", pm: "10", rm: "0", cd: "10", atk: "+0" },
+    historico: "",
+    habilidades: [],
+    inventario: [],
+    tokenId: null,
+    tokenNome: null
+  };
+
+  container.innerHTML = `
+    <div class="sheet-form">
+      <div class="form-header-bar">
+        <span class="form-title">${editando ? "Editar Ficha" : "Nova Ficha"}</span>
+        <button id="btn-voltar" class="btn-secondary">Voltar</button>
+      </div>
+
+      ${dados.tokenId ? `
+        <div style="background: rgba(158, 206, 106, 0.12); border: 1px solid rgba(158, 206, 106, 0.35); border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #9ece6a;">
+          🎯 Token: <strong>${dados.tokenNome}</strong>
+        </div>
+      ` : ""}
+
+      <div style="display:flex; gap:6px;">
+        <input type="text" id="f-nome" style="flex:1;" placeholder="Nome da Entidade *" value="${dados.nome}">
+        <input type="text" id="f-tag" style="width:80px;" placeholder="Tag" value="${dados.tag}">
+      </div>
+
+      <label style="font-size:11px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" id="f-visivel" ${dados.visivelPlayer ? "checked" : ""}>
+        <span>Visível para os Jogadores</span>
+      </label>
+
+      <div id="area-stats"></div>
+      <div id="area-historico"></div>
+      <div id="area-habilidades"></div>
+      <div id="area-inventario"></div>
+
+      <div style="display:flex; gap:8px; margin-top:12px;">
+        <button id="btn-salvar" class="btn-primary" style="flex:1; padding:8px;">Guardar Ficha</button>
+        ${editando ? `<button id="btn-excluir" class="btn-secondary" style="color:var(--danger); border-color:var(--danger);">Excluir</button>` : ""}
+      </div>
+    </div>
+  `;
+
+  container.querySelector("#area-stats").innerHTML = renderStatsForm(dados.stats);
+  renderHistoricoForm(container.querySelector("#area-historico"), dados.historico);
+  renderHabilidadesForm(container.querySelector("#area-habilidades"), dados.habilidades);
+  renderInventarioForm(container.querySelector("#area-inventario"), dados.inventario);
+
+  container.querySelector("#btn-voltar").addEventListener("click", onVoltar);
+
+  if (editando) {
+    container.querySelector("#btn-excluir").addEventListener("click", async () => {
+      await desvincularToken(dados.tokenId);
+      onExcluir(dados.id);
+    });
+  }
+
+  container.querySelector("#btn-salvar").addEventListener("click", async () => {
+    const nome = container.querySelector("#f-nome").value.trim();
+    if (!nome) return alert("Preencha ao menos o Nome.");
+
+    dados.nome = nome;
+    dados.tag = container.querySelector("#f-tag").value.trim() || "NPC";
+    dados.visivelPlayer = container.querySelector("#f-visivel").checked;
+    dados.stats = getStatsFormData(container, dados.stats);
+    dados.historico = getHistoricoFormData(container);
+    dados.habilidades = getHabilidadesFormData(container);
+    dados.inventario = getInventarioFormData(container);
+    dados.criada = true;
+
+    if (dados.tokenId) await vincularTokenAoId(dados.tokenId, dados.id);
+    onSalvar(dados);
+  });
+}
+
+=== ARQUIVO: \painel\fichas\guarda.json ===
+{
+  "id": "guarda-1",
+  "nome": "Guarda de Solaria",
+  "tag": "NPC",
+  "visivelPlayer": true,
+  "desc": "HP: 25 | Defesa: 14 | Lança Solar (1d8+2).",
+  "segredoGM": "Subornável por 15 moedas de ouro."
+}
+
+=== ARQUIVO: \painel\fichas\habilidades.js ===
+export function renderHabilidadesCard(habilidades = []) {
+  if (!habilidades.length) return "";
+
+  let html = `<div><div class="section-label">Habilidades</div><div class="abilities-container">`;
+
+  habilidades.forEach(h => {
+    let pills = [];
+    if (h.custo) pills.push(`<span class="pill-micro">⚡ Custo: ${h.custo}</span>`);
+    if (h.tipo) pills.push(`<span class="pill-micro">🏷️ ${h.tipo}</span>`);
+    if (h.distancia) pills.push(`<span class="pill-micro">🎯 Alcance: ${h.distancia}</span>`);
+    if (h.dano) pills.push(`<span class="pill-micro">💥 Dano: ${h.dano}</span>`);
+    if (h.area) pills.push(`<span class="pill-micro">🌐 Área: ${h.area}</span>`);
+
+    html += `
+      <div class="ability-card-view">
+        <div class="ability-header-row">
+          <span>${h.nome}</span>
+        </div>
+        ${pills.length ? `<div class="ability-pills-row">${pills.join("")}</div>` : ""}
+        ${h.descricao ? `<div class="ability-desc-text">${h.descricao}</div>` : ""}
+      </div>
+    `;
+  });
+
+  html += `</div></div>`;
+  return html;
+}
+
+export function renderHabilidadesForm(container, habilidadesIniciais = []) {
+  const section = document.createElement("div");
+  section.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+      <span class="section-label">Habilidades</span>
+      <button type="button" id="btn-add-hab" class="btn-secondary" style="font-size:11px; padding:3px 8px;">+ Adicionar</button>
+    </div>
+    <div id="hab-list" style="display:flex; flex-direction:column; gap:6px; margin-top:4px;"></div>
+  `;
+
+  const list = section.querySelector("#hab-list");
+
+  function criarCardHabilidade(h = {}) {
+    const item = document.createElement("div");
+    item.className = "edit-block-hab";
+
+    item.innerHTML = `
+      <div style="display:flex; gap:6px; margin-bottom:6px;">
+        <input type="text" class="hab-nome" style="flex:1;" placeholder="Nome da Habilidade *" value="${h.nome || ""}">
+        <button type="button" class="btn-del-hab" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:13px;">✖</button>
+      </div>
+      <div style="display:flex; gap:4px; margin-bottom:4px;">
+        <input type="text" class="hab-custo" placeholder="Custo" value="${h.custo || ""}" style="width:33%;">
+        <input type="text" class="hab-tipo" placeholder="Tipo" value="${h.tipo || ""}" style="width:33%;">
+        <input type="text" class="hab-dist" placeholder="Distância" value="${h.distancia || ""}" style="width:33%;">
+      </div>
+      <div style="display:flex; gap:4px; margin-bottom:4px;">
+        <input type="text" class="hab-dano" placeholder="Dano" value="${h.dano || ""}" style="width:50%;">
+        <input type="text" class="hab-area" placeholder="Área" value="${h.area || ""}" style="width:50%;">
+      </div>
+      <textarea class="hab-desc" placeholder="Descrição da habilidade..." rows="2" style="width:100%;">${h.descricao || ""}</textarea>
+    `;
+
+    item.querySelector(".btn-del-hab").addEventListener("click", () => item.remove());
+    list.appendChild(item);
+  }
+
+  habilidadesIniciais.forEach(h => criarCardHabilidade(h));
+  section.querySelector("#btn-add-hab").addEventListener("click", () => criarCardHabilidade());
+
+  container.appendChild(section);
+}
+
+export function getHabilidadesFormData(container) {
+  const resultado = [];
+  container.querySelectorAll("#hab-list .edit-block-hab").forEach(block => {
+    const nome = block.querySelector(".hab-nome").value.trim();
+    if (nome) {
+      resultado.push({
+        nome,
+        custo: block.querySelector(".hab-custo").value.trim(),
+        tipo: block.querySelector(".hab-tipo").value.trim(),
+        distancia: block.querySelector(".hab-dist").value.trim(),
+        dano: block.querySelector(".hab-dano").value.trim(),
+        area: block.querySelector(".hab-area").value.trim(),
+        descricao: block.querySelector(".hab-desc").value.trim()
+      });
+    }
+  });
+  return resultado;
+}
+
+=== ARQUIVO: \painel\fichas\historico.js ===
+export function renderHistoricoCard(historico) {
+  if (!historico || historico.trim() === "" || historico === "<br>") return "";
+  return `
+    <div>
+      <div class="section-label">Histórico</div>
+      <div class="history-box">${historico}</div>
+    </div>
+  `;
+}
+
+export function renderHistoricoForm(container, historico = "") {
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = `
+    <div class="section-label" style="margin-top:10px;">Histórico</div>
+    <div style="display:flex; gap:4px; margin-bottom:4px;">
+      <button type="button" class="tool-btn" data-cmd="bold"><b>B</b></button>
+      <button type="button" class="tool-btn" data-cmd="italic"><i>I</i></button>
+      <button type="button" class="tool-btn" data-cmd="insertUnorderedList">• Lista</button>
+    </div>
+    <div id="f-historico" class="editor-history" contenteditable="true">${historico}</div>
+  `;
+
+  wrapper.querySelectorAll(".tool-btn").forEach(btn => {
+    btn.addEventListener("click", () => document.execCommand(btn.dataset.cmd, false, null));
+  });
+
+  container.appendChild(wrapper);
+}
+
+export function getHistoricoFormData(container) {
+  return container.querySelector("#f-historico")?.innerHTML || "";
+}
+
+=== ARQUIVO: \painel\fichas\inventario.js ===
+export function renderInventarioCard(inventario = []) {
+  if (!inventario.length) return "";
+
+  let html = `<div><div class="section-label">Inventário</div><div class="inventory-container">`;
+
+  inventario.forEach(iv => {
+    html += `
+      <div class="inv-entry">
+        <span class="inv-qty">${iv.qt || 1}x</span>
+        <span class="inv-name">${iv.item}</span>
+        ${iv.peso ? `<span class="inv-weight">(${iv.peso})</span>` : ""}
+        ${iv.desc ? `<span class="inv-desc">— ${iv.desc}</span>` : ""}
+      </div>
+    `;
+  });
+
+  html += `</div></div>`;
+  return html;
+}
+
+export function renderInventarioForm(container, inventarioInicial = []) {
+  const section = document.createElement("div");
+  section.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+      <span class="section-label">Inventário</span>
+      <button type="button" id="btn-add-inv" class="btn-secondary" style="font-size:11px; padding:3px 8px;">+ Item</button>
+    </div>
+    <div id="inv-list" style="display:flex; flex-direction:column; gap:4px; margin-top:4px;"></div>
+  `;
+
+  const list = section.querySelector("#inv-list");
+
+  function criarLinha(iv = {}) {
+    const row = document.createElement("div");
+    row.className = "edit-block-inv";
+    row.style.display = "flex";
+    row.style.gap = "4px";
+    row.style.alignItems = "center";
+    row.innerHTML = `
+      <input type="text" class="iv-qt" placeholder="Qtd" value="${iv.qt || 1}" style="width:45px; text-align:center;">
+      <input type="text" class="iv-item" placeholder="Item *" value="${iv.item || ""}" style="flex:1;">
+      <input type="text" class="iv-peso" placeholder="Peso" value="${iv.peso || ""}" style="width:55px;">
+      <input type="text" class="iv-desc" placeholder="Descrição" value="${iv.desc || ""}" style="flex:1;">
+      <button type="button" class="btn-del-inv" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:13px;">✖</button>
+    `;
+    row.querySelector(".btn-del-inv").addEventListener("click", () => row.remove());
+    list.appendChild(row);
+  }
+
+  inventarioInicial.forEach(iv => criarLinha(iv));
+  section.querySelector("#btn-add-inv").addEventListener("click", () => criarLinha());
+
+  container.appendChild(section);
+}
+
+export function getInventarioFormData(container) {
+  const resultado = [];
+  container.querySelectorAll("#inv-list .edit-block-inv").forEach(row => {
+    const item = row.querySelector(".iv-item").value.trim();
+    if (item) {
+      resultado.push({
+        qt: row.querySelector(".iv-qt").value.trim() || "1",
+        item,
+        peso: row.querySelector(".iv-peso").value.trim(),
+        desc: row.querySelector(".iv-desc").value.trim()
+      });
+    }
+  });
+  return resultado;
+}
+
+=== ARQUIVO: \painel\fichas\module.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { vincularCalculosCard } from "./stats.js";
+import { SheetStore } from "./store.js";
+import { criarElementoCard } from "./card.js";
+import { renderFormulario } from "./form.js";
+import { iniciarOuvintesOwlbear } from "./obr-sync.js";
+import { atualizarHudToken, removerHudToken, sincronizarTodosHuds } from "./token-hud.js";
+import { SolariaSync } from "../../core/sync.js";
+
+export function render(container, Estado) {
+  if (!document.getElementById("css-fichas")) {
+    const link = document.createElement("link");
+    link.id = "css-fichas";
+    link.rel = "stylesheet";
+    link.href = "./fichas/style.css";
+    document.head.appendChild(link);
+  }
+
+  SheetStore.carregar(Estado.modulos.fichas?.registros);
+  sincronizarTodosHuds(SheetStore.fichas);
+
+  SolariaSync.iniciarOuvinteSala({
+    onFichasRecebidas: (fichasPublicas) => {
+      if (Estado.realRole !== "GM") {
+        SheetStore.mesclarFichasPublicas(fichasPublicas);
+        renderLista();
+      }
+    }
+  });
+
+  // Atualiza a visualização caso o painel esteja aberto no momento da transmissão
+  OBR.broadcast.onMessage("solaria/ficha-sync", () => {
+    SheetStore.carregar();
+    renderLista();
+  });
+
+  OBR.broadcast.onMessage("solaria/ficha-excluida", () => {
+    SheetStore.carregar();
+    renderLista();
+  });
+
+  OBR.broadcast.onMessage("solaria/ficha-stat-atualizado", () => {
+    SheetStore.carregar();
+    renderLista();
+  });
+
+  function focarCardFicha(sheetId) {
+    const btnTab = document.querySelector('[data-tab="fichas"]');
+    if (btnTab && !btnTab.classList.contains("active")) btnTab.click();
+    setTimeout(() => {
+      const card = document.getElementById(`card-${sheetId}`);
+      if (card) {
+        card.classList.add("is-open");
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 80);
+  }
+
+  function executarCriacaoComToken(tokenId, tokenNome) {
+    const btnTab = document.querySelector('[data-tab="fichas"]');
+    if (btnTab && !btnTab.classList.contains("active")) btnTab.click();
+
+    abrirForm({
+      id: "f_" + Date.now(),
+      nome: tokenNome,
+      tag: "NPC",
+      visivelPlayer: true,
+      stats: { pv: "20", pm: "10", rm: "0", cd: "10", atk: "+0" },
+      historico: "",
+      habilidades: [],
+      inventario: [],
+      tokenId: tokenId,
+      tokenNome: tokenNome
+    });
+  }
+
+  function checarAcaoPendente() {
+    const acaoRaw = localStorage.getItem("solaria_acao_pendente");
+    if (!acaoRaw) return;
+
+    try {
+      const acao = JSON.parse(acaoRaw);
+      localStorage.removeItem("solaria_acao_pendente");
+      if (Date.now() - acao.timestamp < 15000) {
+        if (acao.tipo === "CRIAR_FICHA") {
+          setTimeout(() => executarCriacaoComToken(acao.tokenId, acao.tokenNome), 100);
+        } else if (acao.tipo === "FOCAR_FICHA") {
+          setTimeout(() => focarCardFicha(acao.sheetId), 100);
+        }
+      }
+    } catch (_) {}
+  }
+
+  OBR.broadcast.onMessage("solaria/criar-ficha-token", (e) => {
+    localStorage.removeItem("solaria_acao_pendente");
+    executarCriacaoComToken(e.data.tokenId, e.data.tokenNome);
+  });
+
+  OBR.broadcast.onMessage("solaria/focar-ficha-token", (e) => {
+    localStorage.removeItem("solaria_acao_pendente");
+    focarCardFicha(e.data.sheetId);
+  });
+
+  window.addEventListener("storage", (e) => {
+    if (e.key === "solaria_acao_pendente" && e.newValue) checarAcaoPendente();
+  });
+
+  function renderLista() {
+    container.innerHTML = `
+      <div class="fichas-container">
+        <div class="fichas-topbar">
+          <input type="text" id="busca-ficha" placeholder="Buscar ficha..." style="flex:1;">
+          ${Estado.role === "GM" ? `<button id="btn-nova-ficha" class="btn-primary">+ Nova Ficha</button>` : ""}
+        </div>
+        <div id="list-fichas-container" class="fichas-scroll"></div>
+      </div>
+    `;
+
+    const listDiv = container.querySelector("#list-fichas-container");
+    const busca = container.querySelector("#busca-ficha");
+
+    if (Estado.role === "GM") {
+      container.querySelector("#btn-nova-ficha").addEventListener("click", () => abrirForm(null));
+    }
+
+    const desenhar = () => {
+      listDiv.innerHTML = "";
+      const termo = busca.value.toLowerCase();
+      
+      const filtradas = SheetStore.fichas.filter(f => 
+        (Estado.role === "GM" || f.visivelPlayer !== false) && f.nome.toLowerCase().includes(termo)
+      );
+
+      filtradas.forEach(f => {
+        const card = criarElementoCard(f, Estado.role, {
+          onEditar: (item) => abrirForm(item),
+          onAtualizar: (fichaAtualizada) => { 
+            SheetStore.salvar(); 
+            if (fichaAtualizada) OBR.broadcast.sendMessage("solaria/ficha-sync", fichaAtualizada);
+            desenhar(); 
+          }
+        });
+        listDiv.appendChild(card);
+      });
+
+      vincularCalculosCard(listDiv, async (fichaId, callbackMutacao) => {
+        const ficha = SheetStore.obter(fichaId);
+        if (ficha) {
+          callbackMutacao(ficha);
+          SheetStore.salvar();
+          await atualizarHudToken(ficha);
+          OBR.broadcast.sendMessage("solaria/ficha-sync", ficha);
+        }
+      });
+    };
+
+    busca.addEventListener("input", desenhar);
+    desenhar();
+  }
+
+  function abrirForm(ficha) {
+    renderFormulario(
+      container,
+      ficha,
+      () => renderLista(),
+      async (dadosSalvos) => {
+        SheetStore.adicionarOuAtualizar(dadosSalvos);
+        await atualizarHudToken(dadosSalvos);
+        OBR.broadcast.sendMessage("solaria/ficha-sync", dadosSalvos);
+        renderLista();
+      },
+      async (idExcluir) => {
+        const f = SheetStore.obter(idExcluir);
+        if (f?.tokenId) await removerHudToken(f.tokenId, idExcluir);
+        SheetStore.remover(idExcluir);
+        OBR.broadcast.sendMessage("solaria/ficha-excluida", idExcluir);
+        renderLista();
+      }
+    );
+  }
+
+  iniciarOuvintesOwlbear(
+    (sheetId) => focarCardFicha(sheetId),
+    (tokenId, tokenNome) => executarCriacaoComToken(tokenId, tokenNome)
+  );
+
+  renderLista();
+  checarAcaoPendente();
+}
+
+=== ARQUIVO: \painel\fichas\obr-sync.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+
+export const METADATA_KEY = "solaria/sheetId";
+
+export async function vincularTokenAoId(tokenId, sheetId) {
+  if (!tokenId) return;
+  try {
+    await OBR.scene.items.updateItems([tokenId], (itens) => {
+      for (const it of itens) it.metadata[METADATA_KEY] = sheetId;
+    });
+  } catch (_) {}
+}
+
+export async function desvincularToken(tokenId) {
+  if (!tokenId) return;
+  try {
+    await OBR.scene.items.updateItems([tokenId], (itens) => {
+      for (const it of itens) delete it.metadata[METADATA_KEY];
+    });
+  } catch (_) {}
+}
+
+export async function selecionarTokenNoGrid(tokenId) {
+  if (tokenId) await OBR.player.select([tokenId]);
+}
+
+export async function obterDadosTokenSelecionado() {
+  const selection = await OBR.player.getSelection();
+  if (!selection || !selection.length) return null;
+
+  const items = await OBR.scene.items.getItems([selection[0]]);
+  const it = items[0];
+  if (!it) return null;
+
+  return {
+    tokenId: it.id,
+    tokenNome: it.text?.plainText || (it.name !== "Image" ? it.name : "") || "Token"
+  };
+}
+
+export function iniciarOuvintesOwlbear(onFocarFicha, onCriarFicha) {
+  // Foca a ficha quando clica no token no mapa
+  OBR.player.onChange(async (player) => {
+    if (!player.selection?.length) return;
+    try {
+      const items = await OBR.scene.items.getItems(player.selection);
+      const sheetId = items[0]?.metadata?.[METADATA_KEY];
+      if (sheetId) onFocarFicha(sheetId);
+    } catch (_) {}
+  });
+
+  // Escuta clique do botão direito (menu de contexto)
+  OBR.broadcast.onMessage("solaria/criar-ficha-token", (e) => {
+    onCriarFicha(e.data.tokenId, e.data.tokenNome);
+  });
+}
+
+=== ARQUIVO: \painel\fichas\quick-stat.html ===
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 10px 12px;
+      background: #14161f;
+      color: #c0caf5;
+      font-family: system-ui, -apple-system, sans-serif;
+      border: 2px solid var(--cor-borda, #7aa2f7);
+      border-radius: 8px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .stat-badge {
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.08);
+      color: var(--cor-borda, #7aa2f7);
+    }
+    .inputs-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 6px 0;
+    }
+    .field-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .field-group label {
+      font-size: 9px;
+      color: #6b739c;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    input {
+      width: 100%;
+      background: #10121a;
+      color: #fff;
+      border: 1px solid #3b4261;
+      border-radius: 4px;
+      padding: 5px 6px;
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      outline: none;
+    }
+    input:focus {
+      border-color: var(--cor-borda, #7aa2f7);
+    }
+    .slash {
+      font-size: 16px;
+      font-weight: bold;
+      color: #414868;
+      margin-top: 12px;
+    }
+    .hint {
+      font-size: 9px;
+      color: #6b739c;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span id="ficha-nome">Ficha</span>
+    <span id="stat-label" class="stat-badge">STAT</span>
+  </div>
+
+  <div class="inputs-row">
+    <div class="field-group">
+      <label>Atual</label>
+      <input type="text" id="inp-atual" placeholder="Ex: -10" />
+    </div>
+    <span class="slash">/</span>
+    <div class="field-group">
+      <label>Máx</label>
+      <input type="text" id="inp-max" placeholder="Máx" />
+    </div>
+  </div>
+
+  <div class="hint">Digite ex: <b>-10</b>, <b>+5</b>, <b>/2</b> e tecle <b>Enter</b></div>
+
+  <script type="module">
+    import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+    import { calcularNovoStat } from "./calc.js";
+    import { normalizarStats } from "./stats.js";
+    import { atualizarHudToken } from "./token-hud.js";
+
+    const params = new URLSearchParams(window.location.search);
+    const sheetId = params.get("sheetId");
+    const statId = params.get("statId");
+    const statLabel = params.get("label") || statId?.toUpperCase();
+    const cor = params.get("cor") || "#7aa2f7";
+
+    document.documentElement.style.setProperty("--cor-borda", cor);
+    document.getElementById("stat-label").textContent = statLabel;
+
+    const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const ficha = fichas.find(f => f.id === sheetId);
+
+    const inpAtual = document.getElementById("inp-atual");
+    const inpMax = document.getElementById("inp-max");
+
+    if (ficha) {
+      document.getElementById("ficha-nome").textContent = ficha.nome;
+      ficha.stats = normalizarStats(ficha.stats);
+      inpAtual.value = ficha.stats[statId].atual;
+      inpMax.value = ficha.stats[statId].max;
+      setTimeout(() => {
+        inpAtual.focus();
+        inpAtual.select();
+      }, 30);
+    }
+
+    async function salvarEFechar() {
+      if (!ficha) return;
+      const antigoAtual = ficha.stats[statId].atual;
+      const antigoMax = ficha.stats[statId].max;
+
+      ficha.stats[statId].atual = calcularNovoStat(antigoAtual, inpAtual.value);
+      ficha.stats[statId].max = calcularNovoStat(antigoMax, inpMax.value);
+
+      localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
+
+      OBR.onReady(async () => {
+        await atualizarHudToken(ficha);
+        await OBR.broadcast.sendMessage("solaria/ficha-stat-atualizado", { sheetId });
+        await OBR.popover.close("solaria-quick-stat-editor");
+      });
+    }
+
+    [inpAtual, inpMax].forEach(inp => {
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") salvarEFechar();
+        if (e.key === "Escape") {
+          OBR.onReady(() => OBR.popover.close("solaria-quick-stat-editor"));
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+
+=== ARQUIVO: \painel\fichas\stats.js ===
+import { calcularNovoStat } from "./calc.js";
+
+const STATS_CHAVES = [
+  { id: "pv", label: "PV", cor: "#f7768e" },
+  { id: "pm", label: "PM", cor: "#7aa2f7" },
+  { id: "rm", label: "RM", cor: "#e0af68" },
+  { id: "cd", label: "CD", cor: "#bb9af7" },
+  { id: "atk", label: "ATK", cor: "#73daca" }
+];
+
+/**
+ * Normaliza o objeto de stats garantindo que cada atributo tenha { atual, max }.
+ * Mantém retrocompatibilidade se existirem fichas antigas salvas com números simples.
+ */
+export function normalizarStats(statsRaw = {}) {
+  const norm = {};
+  STATS_CHAVES.forEach(({ id }) => {
+    const s = statsRaw[id];
+    if (typeof s === "object" && s !== null) {
+      norm[id] = {
+        atual: parseFloat(s.atual ?? s.max ?? 0),
+        max: parseFloat(s.max ?? s.atual ?? 0)
+      };
+    } else {
+      const val = parseFloat(s ?? 0) || 0;
+      norm[id] = { atual: val, max: val };
+    }
+  });
+  return norm;
+}
+
+/**
+ * Renderiza a grade de stats no card principal da ficha com inputs inline de cálculo rápido.
+ */
+export function renderStatsCard(statsRaw = {}, fichaId = "") {
+  const stats = normalizarStats(statsRaw);
+
+  let html = `<div class="stats-badge-grid" data-ficha-id="${fichaId}">`;
+
+  STATS_CHAVES.forEach(({ id, label, cor }) => {
+    const item = stats[id];
+    html += `
+      <div class="stat-pill" style="border-top: 2px solid ${cor};">
+        <span class="stat-pill-label">${label}</span>
+        <div class="stat-values-row">
+          <input 
+            type="text" 
+            class="stat-calc-input stat-input-cur" 
+            data-ficha-id="${fichaId}" 
+            data-stat="${id}" 
+            data-sub="atual" 
+            title="Valor Atual (digite -10, +5, /2, etc)" 
+            value="${item.atual}"
+          />
+          <span class="stat-slash">/</span>
+          <input 
+            type="text" 
+            class="stat-calc-input stat-input-max" 
+            data-ficha-id="${fichaId}" 
+            data-stat="${id}" 
+            data-sub="max" 
+            title="Valor Máximo" 
+            value="${item.max}"
+          />
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+/**
+ * Liga os ouvintes de cálculo matemático dinâmico nos inputs dos cards.
+ */
+export function vincularCalculosCard(container, aoAtualizarFicha) {
+  container.querySelectorAll(".stat-calc-input").forEach(input => {
+    // Impede que o clique no input expanda/feche o card da ficha
+    input.addEventListener("click", (e) => e.stopPropagation());
+
+    const aplicarOperacao = () => {
+      const fichaId = input.dataset.fichaId;
+      const statId = input.dataset.stat;
+      const sub = input.dataset.sub; // "atual" ou "max"
+      const valorDigitado = input.value.trim();
+
+      aoAtualizarFicha(fichaId, (ficha) => {
+        ficha.stats = normalizarStats(ficha.stats);
+        const valorAntigo = ficha.stats[statId][sub];
+        const novoValor = calcularNovoStat(valorAntigo, valorDigitado);
+
+        ficha.stats[statId][sub] = novoValor;
+        input.value = novoValor;
+      });
+    };
+
+    input.addEventListener("change", aplicarOperacao);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        input.blur();
+      }
+    });
+  });
+}
+
+/**
+ * Renderiza o formulário completo de edição de stats (com Atual e Max).
+ */
+export function renderStatsForm(statsRaw = {}) {
+  const stats = normalizarStats(statsRaw);
+
+  let html = `
+    <div class="section-label" style="margin-top:10px;">Atributos / Stats (Atual / Máx)</div>
+    <div class="stats-badge-grid">
+  `;
+
+  STATS_CHAVES.forEach(({ id, label, cor }) => {
+    const item = stats[id];
+    html += `
+      <div class="stat-pill" style="border-top: 2px solid ${cor};">
+        <span class="stat-pill-label">${label}</span>
+        <div class="stat-values-row">
+          <input type="text" id="form-st-${id}-cur" class="stat-calc-input" placeholder="Atual" value="${item.atual}">
+          <span class="stat-slash">/</span>
+          <input type="text" id="form-st-${id}-max" class="stat-calc-input" placeholder="Máx" value="${item.max}">
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+/**
+ * Coleta os dados preenchidos no formulário aplicando o cálculo caso alguém digite fórmulas.
+ */
+export function getStatsFormData(container, statsAntigos = {}) {
+  const antigos = normalizarStats(statsAntigos);
+  const resultado = {};
+
+  STATS_CHAVES.forEach(({ id }) => {
+    const inputCur = container.querySelector(`#form-st-${id}-cur`)?.value || "0";
+    const inputMax = container.querySelector(`#form-st-${id}-max`)?.value || "0";
+
+    const valorCurAntigo = antigos[id]?.atual ?? 0;
+    const valorMaxAntigo = antigos[id]?.max ?? 0;
+
+    resultado[id] = {
+      atual: calcularNovoStat(valorCurAntigo, inputCur),
+      max: calcularNovoStat(valorMaxAntigo, inputMax)
+    };
+  });
+
+  return resultado;
+}
+
+=== ARQUIVO: \painel\fichas\store.js ===
+import { SolariaSync } from "../../core/sync.js";
+
+const STORAGE_KEY = "solaria_fichas_custom";
+
+export const SheetStore = {
+  fichas: [],
+
+  carregar(registrosEstaticos = []) {
+    this.fichas = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+
+    registrosEstaticos.forEach(f => {
+      if (!this.fichas.some(item => item.id === f.id)) {
+        this.fichas.unshift({
+          id: f.id,
+          nome: f.nome,
+          tag: f.tag || "NPC",
+          visivelPlayer: f.visivelPlayer ?? true,
+          stats: f.stats || { pv: "25", pm: "10", rm: "2", cd: "12", atk: "+4" },
+          historico: f.desc || "",
+          habilidades: f.habilidades || [],
+          inventario: f.inventario || [],
+          tokenId: null,
+          tokenNome: null
+        });
+      }
+    });
+    return this.fichas;
+  },
+
+  salvar(notificarSala = true) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.fichas));
+    if (notificarSala) {
+      SolariaSync.sincronizarFichasComSala(this.fichas);
+    }
+  },
+
+  obter(id) {
+    return this.fichas.find(f => f.id === id);
+  },
+
+  adicionarOuAtualizar(dados, notificarSala = true) {
+    const idx = this.fichas.findIndex(f => f.id === dados.id);
+    if (idx >= 0) {
+      this.fichas[idx] = dados;
+    } else {
+      this.fichas.unshift(dados);
+    }
+    this.salvar(notificarSala);
+  },
+
+  remover(id) {
+    this.fichas = this.fichas.filter(f => f.id !== id);
+    this.salvar(true);
+  },
+
+  /**
+   * Mescla dados recebidos da sala (para clientes Jogador)
+   */
+  mesclarFichasPublicas(fichasPublicas = []) {
+    this.fichas = fichasPublicas;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.fichas));
+  }
+};
+
+=== ARQUIVO: \painel\fichas\style.css ===
+/* Layout Principal da Aba Fichas */
+.fichas-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+
+.fichas-topbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.fichas-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* Card da Ficha */
+.sheet-card {
+  background: #1e2233;
+  border: 1px solid #3b4261;
+  border-radius: 8px;
+  padding: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.sheet-card:hover {
+  border-color: #565f89;
+}
+
+.sheet-card.is-open {
+  border-color: #7aa2f7;
+}
+
+.sheet-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sheet-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sheet-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-icon-action {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.btn-icon-action:hover {
+  background: #2f354d;
+}
+
+.sheet-tag-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(122, 162, 247, 0.15);
+  color: #7aa2f7;
+  border: 1px solid rgba(122, 162, 247, 0.3);
+}
+
+/* Grade de Atributos / Stats */
+.stats-badge-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.stat-pill {
+  background: #14161f;
+  border: 1px solid #2f354d;
+  border-radius: 6px;
+  padding: 5px 2px;
+  text-align: center;
+}
+
+.stat-pill-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  color: #7982a9;
+  text-transform: uppercase;
+}
+
+.stat-pill-value {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: #c0caf5;
+  margin-top: 2px;
+}
+
+/* Corpo Expansível da Ficha */
+.sheet-body-content {
+  display: none;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #2f354d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sheet-card.is-open .sheet-body-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #bb9af7;
+  margin-bottom: 4px;
+}
+
+.history-box {
+  background: #14161f;
+  border: 1px solid #24283b;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #c0caf5;
+}
+
+/* Lista e Cards de Habilidades */
+.abilities-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ability-card-view {
+  background: #14161f;
+  border: 1px solid #2f354d;
+  border-left: 3px solid #7aa2f7;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.ability-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  color: #fff;
+  font-size: 12px;
+}
+
+.ability-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 5px 0;
+}
+
+.pill-micro {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #1e2233;
+  color: #7aa2f7;
+  border: 1px solid #3b4261;
+}
+
+.ability-desc-text {
+  font-size: 11px;
+  color: #a9b1d6;
+  margin-top: 4px;
+}
+
+/* Tabela e Linhas de Inventário */
+.inventory-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inv-entry {
+  background: #14161f;
+  border: 1px solid #24283b;
+  border-radius: 4px;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.inv-qty {
+  font-weight: 800;
+  color: #e0af68;
+}
+
+.inv-name {
+  font-weight: 600;
+  color: #fff;
+}
+
+.inv-weight {
+  color: #7982a9;
+  font-size: 10px;
+}
+
+.inv-desc {
+  color: #9aa5ce;
+  font-style: italic;
+  margin-left: auto;
+}
+
+/* Formulário de Edição */
+.sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding-bottom: 20px;
+}
+
+.form-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #2f354d;
+  padding-bottom: 8px;
+}
+
+.form-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.editor-history {
+  min-height: 80px;
+  background: #14161f;
+  border: 1px solid #2f354d;
+  border-radius: 6px;
+  padding: 8px;
+  color: #c0caf5;
+  font-size: 12px;
+  outline: none;
+}
+
+.tool-btn {
+  background: #1e2233;
+  border: 1px solid #2f354d;
+  color: #c0caf5;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tool-btn:hover {
+  background: #2f354d;
+  color: #fff;
+}
+
+.edit-block-hab, .edit-block-inv {
+  background: #14161f;
+  border: 1px solid #2f354d;
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 6px;
+}
+
+/* Controles de Vínculo com Token do Owlbear */
+.token-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #14161f;
+  border: 1px dashed #3b4261;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin: 6px 0;
+  font-size: 11px;
+}
+
+.token-link-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #c0caf5;
+}
+
+.token-badge-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(158, 206, 106, 0.15);
+  color: #9ece6a;
+  border: 1px solid rgba(158, 206, 106, 0.3);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.token-badge-active:hover {
+  background: rgba(158, 206, 106, 0.25);
+}
+
+.btn-token-link {
+  background: #24283b;
+  border: 1px solid #3b4261;
+  color: #7aa2f7;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-token-link:hover {
+  background: #2f354d;
+  border-color: #7aa2f7;
+}
+
+.btn-token-unlink {
+  background: transparent;
+  border: none;
+  color: #565f89;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.btn-token-unlink:hover {
+  color: #f7768e;
+}
+
+/* Garante que nenhum elemento estoure a largura do painel */
+.fichas-container, .sheet-form, .fichas-scroll {
+  overflow-x: hidden !important;
+  width: 100%;
+}
+
+.edit-block-inv, .inv-entry {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.stats-badge-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.stat-pill input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Sub-campos Atual / Máximo nos Stats */
+.stat-values-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.stat-calc-input {
+  width: 100% !important;
+  max-width: 38px;
+  text-align: center;
+  padding: 3px 2px !important;
+  font-size: 11px !important;
+  font-weight: 700;
+  color: #fff !important;
+  background: #10121a !important;
+  border: 1px solid #2f354d !important;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.stat-calc-input:focus {
+  border-color: #7aa2f7 !important;
+  background: #1a1b26 !important;
+}
+
+.stat-input-cur {
+  color: #7aa2f7 !important;
+}
+
+.stat-input-max {
+  color: #7982a9 !important;
+}
+
+.stat-slash {
+  font-size: 11px;
+  font-weight: 700;
+  color: #414868;
+  user-select: none;
+}
+
+=== ARQUIVO: \painel\fichas\token-hud.js ===
+import OBR, { buildPath, buildText, buildShape, Command } from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { normalizarStats } from "./stats.js";
+
+export const METADATA_HUD_KEY = "solaria/tokenHudItem";
+export const METADATA_BTN_FICHA_KEY = "solaria/btnAbrirFicha";
+
+const ORBITA_STATS = [
+  { id: "atk", label: "ATK", cor: "#73daca", angulo: 165 },
+  { id: "pv",  label: "PV",  cor: "#f7768e", angulo: 215 },
+  { id: "pm",  label: "PM",  cor: "#7aa2f7", angulo: 270 },
+  { id: "rm",  label: "RM",  cor: "#e0af68", angulo: 325 },
+  { id: "cd",  label: "CD",  cor: "#bb9af7", angulo: 15 }
+];
+
+function formatarValorStat(id, itemStat) {
+  const cur = itemStat?.atual ?? 0;
+  const max = itemStat?.max ?? cur;
+  if (id === "pv" || id === "pm") return `${cur}/${max}`;
+  if (cur === max || !max) return String(cur);
+  return `${cur}/${max}`;
+}
+
+function criarComandosRetanguloArredondado(w, h, r) {
+  const raio = Math.min(r, w / 2, h / 2);
+  return [
+    [Command.MOVE, raio, 0],
+    [Command.LINE, w - raio, 0],
+    [Command.QUAD, w, 0, w, raio],
+    [Command.LINE, w, h - raio],
+    [Command.QUAD, w, h, w - raio, h],
+    [Command.LINE, raio, h],
+    [Command.QUAD, 0, h, 0, h - raio],
+    [Command.LINE, 0, raio],
+    [Command.QUAD, 0, 0, raio, 0],
+    [Command.CLOSE]
+  ];
+}
+
+export async function removerHudToken(tokenId, fichaId = null) {
+  if (!tokenId && !fichaId) return;
+  try {
+    const itensCena = await OBR.scene.items.getItems();
+    const itensAntigos = itensCena.filter((item) => {
+      const isHud = item.metadata?.[METADATA_HUD_KEY] || item.metadata?.[METADATA_BTN_FICHA_KEY];
+      const matchToken = tokenId && item.attachedTo === tokenId;
+      const matchFicha = fichaId && item.metadata?.sheetId === fichaId;
+      return isHud && (matchToken || matchFicha);
+    });
+
+    if (itensAntigos.length > 0) {
+      await OBR.scene.items.deleteItems(itensAntigos.map((i) => i.id));
+    }
+  } catch (err) {
+    console.error("Erro ao remover HUD:", err);
+  }
+}
+
+export async function atualizarHudToken(ficha, tokenIdEspecifico = null) {
+  const tokenId = tokenIdEspecifico || ficha.tokenId;
+  if (!tokenId) return;
+
+  try {
+    await removerHudToken(tokenId, ficha.id);
+
+    const items = await OBR.scene.items.getItems([tokenId]);
+    const token = items[0];
+    if (!token) return;
+
+    let sceneDpi = 150;
+    try { sceneDpi = await OBR.grid.getDpi(); } catch (_) {}
+
+    const scaleX = Math.abs(token.scale?.x ?? 1);
+    const scaleY = Math.abs(token.scale?.y ?? 1);
+    const imgW = token.image?.width || 150;
+    const imgH = token.image?.height || 150;
+    const tokenDpi = token.grid?.dpi || 150;
+
+    const tokenWidth = (imgW / tokenDpi) * sceneDpi * scaleX;
+    const tokenHeight = (imgH / tokenDpi) * sceneDpi * scaleY;
+
+    const offsetX = token.grid?.offset?.x ?? (imgW / 2);
+    const offsetY = token.grid?.offset?.y ?? (imgH / 2);
+    
+    const centerX = token.position.x + ((imgW / 2 - offsetX) / tokenDpi) * sceneDpi * scaleX;
+    const centerY = token.position.y + ((imgH / 2 - offsetY) / tokenDpi) * sceneDpi * scaleY;
+
+    const tokenRaio = Math.min(tokenWidth, tokenHeight) / 2;
+    const tokenDiametro = tokenRaio * 2;
+
+    const badgeW = 78;
+    const badgeH = 24;
+    const cornerRadius = 8;
+    const orbitalRadius = tokenRaio + badgeH / 2 + 8;
+
+    const visivel = ficha.visivelPlayer !== false;
+    const statsNorm = normalizarStats(ficha.stats);
+    const novosItens = [];
+    const comandosArredondados = criarComandosRetanguloArredondado(badgeW, badgeH, cornerRadius);
+
+    // LER CONFIGURAÇÃO GLOBAL: Stats ativados? (Default: true)
+    const statsAtivosGlobais = localStorage.getItem("solaria_exibir_stats") !== "false";
+
+    if (statsAtivosGlobais) {
+      const pvStat = statsNorm.pv || { atual: 0, max: 0 };
+      const curPv = Number(pvStat.atual) || 0;
+      const maxPv = Number(pvStat.max) || curPv;
+
+      const isMorto = curPv <= 0;
+      const isCritico = !isMorto && maxPv > 0 && curPv < (maxPv * 0.10);
+
+      // 1. Círculo de Estado
+      if (isMorto || isCritico) {
+        const corAnel = isMorto ? "#e63946" : "#ff9e3b";
+        const statusRing = buildShape()
+          .shapeType("CIRCLE")
+          .width(tokenDiametro)
+          .height(tokenDiametro)
+          .position({ x: centerX, y: centerY })
+          .fillColor("#000000")
+          .fillOpacity(0)
+          .strokeColor(corAnel)
+          .strokeWidth(6)
+          .attachedTo(token.id)
+          .layer("ATTACHMENT")
+          .disableHit(true)
+          .locked(true)
+          .visible(visivel)
+          .zIndex(5)
+          .metadata({ [METADATA_HUD_KEY]: true, sheetId: ficha.id, tipo: "status-ring" })
+          .build();
+        novosItens.push(statusRing);
+      }
+
+      // 2. Caveira Centralizada
+      if (isMorto) {
+        const skullFontSize = Math.max(30, Math.round(tokenDiametro * 0.35)); 
+        const boxSize = skullFontSize * 2; 
+
+        const skullText = buildText()
+          .textType("PLAIN")
+          .plainText("💀")
+          .position({ x: Math.round(centerX - boxSize / 2), y: Math.round(centerY - boxSize / 2) })
+          .width(boxSize)
+          .height(boxSize)
+          .fontSize(skullFontSize)
+          .textAlign("CENTER")
+          .textAlignVertical("MIDDLE")
+          .attachedTo(token.id)
+          .layer("TEXT")
+          .disableHit(true)
+          .locked(true)
+          .visible(visivel)
+          .zIndex(25)
+          .metadata({ [METADATA_HUD_KEY]: true, sheetId: ficha.id, tipo: "status-morte" })
+          .build();
+        novosItens.push(skullText);
+      }
+
+      // 3. Badges (Órbita de Stats)
+      ORBITA_STATS.forEach((cfg) => {
+        const rad = (cfg.angulo * Math.PI) / 180;
+        const px = centerX + orbitalRadius * Math.cos(rad);
+        const py = centerY + orbitalRadius * Math.sin(rad);
+        const bx = Math.round(px - badgeW / 2);
+        const by = Math.round(py - badgeH / 2);
+        const textoValor = formatarValorStat(cfg.id, statsNorm[cfg.id]);
+        
+        const metaComum = { [METADATA_HUD_KEY]: true, sheetId: ficha.id, statId: cfg.id, statLabel: cfg.label, statCor: cfg.cor };
+
+        const badgePath = buildPath()
+          .commands(comandosArredondados)
+          .position({ x: bx, y: by })
+          .fillColor("#14161f")
+          .fillOpacity(0.94)
+          .strokeColor(cfg.cor)
+          .strokeWidth(2)
+          .attachedTo(token.id)
+          .layer("ATTACHMENT")
+          .disableHit(false)
+          .locked(true)
+          .visible(visivel)
+          .zIndex(10)
+          .metadata(metaComum)
+          .build();
+
+        const badgeText = buildText()
+          .textType("PLAIN")
+          .plainText(`${cfg.label} ${textoValor}`)
+          .position({ x: bx, y: by })
+          .width(badgeW)
+          .height(badgeH)
+          .fontSize(12)
+          .fontWeight(700)
+          .fillColor("#ffffff")
+          .fillOpacity(1)
+          .strokeColor("#000000")
+          .strokeWidth(0)
+          .textAlign("CENTER")
+          .textAlignVertical("MIDDLE")
+          .attachedTo(token.id)
+          .layer("TEXT")
+          .disableHit(true)
+          .locked(true)
+          .visible(visivel)
+          .zIndex(20)
+          .metadata(metaComum)
+          .build();
+
+        novosItens.push(badgePath, badgeText);
+      });
+    }
+
+    // 4. Botão Flutuante (📜) - Sempre gerado para não perder acesso à ficha
+    const emojiSize = 30;
+    const emojiX = Math.round(centerX + tokenRaio * 0.72 - emojiSize / 2);
+    const emojiY = Math.round(centerY + tokenRaio * 0.72 - emojiSize / 2);
+
+    const btnFichaText = buildText()
+      .textType("PLAIN")
+      .plainText("📜")
+      .position({ x: emojiX, y: emojiY })
+      .width(emojiSize)
+      .height(emojiSize)
+      .fontSize(18)
+      .textAlign("CENTER")
+      .textAlignVertical("MIDDLE")
+      .attachedTo(token.id)
+      .layer("TEXT")
+      .disableHit(false)
+      .locked(true)
+      .visible(visivel)
+      .zIndex(30)
+      .metadata({
+        [METADATA_BTN_FICHA_KEY]: true,
+        sheetId: ficha.id,
+        tokenId: token.id
+      })
+      .build();
+
+    novosItens.push(btnFichaText);
+
+    if (novosItens.length > 0) {
+      await OBR.scene.items.addItems(novosItens);
+    }
+  } catch (err) {
+    console.error("Erro ao desenhar HUD:", err);
+  }
+}
+
+export async function sincronizarTodosHuds(fichas = []) {
+  for (const f of fichas) {
+    if (f.tokenId) await atualizarHudToken(f);
+  }
+}
+
+=== ARQUIVO: \painel\painel.html ===
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    :root {
+      --bg: #14161f;
+      --surface: #1e2233;
+      --border: #3b4261;
+      --accent: #7aa2f7;
+      --accent-gm: #bb9af7;
+      --danger: #f7768e;
+      --text: #c0caf5;
+      --text-muted: #6b739c;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      position: relative;
+    }
+
+    /* Alças de Redimensionamento (Arrastar) */
+    .resize-handle-top {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      cursor: ns-resize;
+      z-index: 9999;
+    }
+    .resize-handle-left {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 6px;
+      cursor: ew-resize;
+      z-index: 9999;
+    }
+    .resize-handle-corner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 12px;
+      height: 12px;
+      cursor: nwse-resize;
+      z-index: 10000;
+    }
+    .resize-handle-corner::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 6px;
+      height: 6px;
+      border-top: 2px solid var(--accent-gm);
+      border-left: 2px solid var(--accent-gm);
+      opacity: 0.5;
+    }
+
+    header {
+      background: var(--surface);
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      user-select: none;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .title { font-weight: bold; font-size: 13px; color: #fff; }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .role-badge {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+    }
+    .role-gm { background: var(--accent-gm); color: #14161f; }
+    .role-player { background: var(--accent); color: #14161f; }
+
+    .btn-size-preset {
+      background: #14161f;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 4px;
+      font-size: 11px;
+      padding: 2px 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .btn-size-preset:hover {
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* Barra de Abas */
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      text-transform: capitalize;
+      white-space: nowrap;
+    }
+    .tab-btn.active {
+      color: #fff;
+      border-bottom-color: var(--accent-gm);
+      background: rgba(187, 154, 247, 0.08);
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+    .tab-content {
+      display: none;
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .tab-content.active { display: flex; }
+
+    input, select, textarea {
+      background: #10121a;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      outline: none;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+    .btn-primary {
+      background: var(--accent-gm);
+      color: #14161f;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Alças de Redimensionamento-->
+  <div id="resize-top" class="resize-handle-top" title="Arraste para redimensionar verticalmente"></div>
+  <div id="resize-left" class="resize-handle-left" title="Arraste para redimensionar horizontalmente"></div>
+  <div id="resize-corner" class="resize-handle-corner" title="Arraste o canto para redimensionar"></div>
+
+  <header>
+    <div class="header-left">
+      <span class="title">Solaria Companion</span>
+      <button id="btn-toggle-size" class="btn-size-preset" title="Alternar Tamanho Predefinido">📐 Médio</button>
+    </div>
+    <div class="header-actions">
+      <span id="role-badge" class="role-badge role-gm">Visão: Mestre (GM)</span>
+    </div>
+  </header>
+
+  <nav id="tabs-bar" class="tabs"></nav>
+  <main id="tabs-container"></main>
+
+  <script type="module" src="./painel.js"></script>
+</body>
+</html>
+
+=== ARQUIVO: \painel\painel.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+
+const ID_PAINEL = "solaria-painel-inferior-direito";
+
+export const Estado = {
+  // Padrão seguro inicial: sempre PLAYER até confirmação do SDK
+  realRole: "PLAYER",
+  viewRole: "PLAYER",
+  get role() {
+    return this.viewRole;
+  },
+  set role(val) {
+    this.viewRole = val;
+  },
+  abaAtiva: localStorage.getItem("solaria_aba_ativa") || null,
+  modulos: {},
+  dimensoes: JSON.parse(localStorage.getItem("solaria_painel_dimensoes") || '{"width":480,"height":680}'),
+  irParaCard(aba, idCard) {
+    const btn = document.querySelector(`[data-tab="${aba}"]`);
+    if (btn) btn.click();
+    setTimeout(() => {
+      const card = document.getElementById(`card-${idCard}`);
+      if (card) {
+        card.classList.add("open");
+        card.classList.add("is-open");
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 50);
+  }
+};
+
+export async function aplicarDimensoes(largura, altura) {
+  const w = Math.max(340, Math.min(largura, window.screen.width - 40));
+  const h = Math.max(400, Math.min(altura, window.screen.height - 100));
+
+  Estado.dimensoes = { width: w, height: h };
+  localStorage.setItem("solaria_painel_dimensoes", JSON.stringify(Estado.dimensoes));
+
+  try {
+    await OBR.popover.setWidth(ID_PAINEL, Math.round(w));
+    await OBR.popover.setHeight(ID_PAINEL, Math.round(h));
+  } catch (_) {}
+}
+
+function configurarArrasto() {
+  const elTop = document.getElementById("resize-top");
+  const elLeft = document.getElementById("resize-left");
+  const elCorner = document.getElementById("resize-corner");
+
+  function iniciarRedimensionamento(e, redimensionaW, redimensionaH) {
+    e.preventDefault();
+    const startX = e.screenX;
+    const startY = e.screenY;
+    const startW = Estado.dimensoes.width;
+    const startH = Estado.dimensoes.height;
+
+    const onPointerMove = (ev) => {
+      let novoW = startW;
+      let novoH = startH;
+
+      if (redimensionaW) {
+        novoW = startW + (startX - ev.screenX);
+      }
+      if (redimensionaH) {
+        novoH = startH + (startY - ev.screenY);
+      }
+
+      aplicarDimensoes(novoW, novoH);
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
+
+  elTop?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, false, true));
+  elLeft?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, true, false));
+  elCorner?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, true, true));
+
+  const btnPreset = document.getElementById("btn-toggle-size");
+  const presets = [
+    { label: "📐 Médio", width: 480, height: 680 },
+    { label: "📐 Amplo", width: 660, height: 760 },
+    { label: "📐 Max", width: 860, height: 860 }
+  ];
+  let presetIdx = 0;
+
+  btnPreset?.addEventListener("click", () => {
+    presetIdx = (presetIdx + 1) % presets.length;
+    const p = presets[presetIdx];
+    btnPreset.textContent = p.label;
+    aplicarDimensoes(p.width, p.height);
+  });
+}
+
+export async function carregarPainel() {
+  const res = await fetch("../modulos.json");
+  Estado.modulos = await res.json();
+
+  const tabsBar = document.getElementById("tabs-bar");
+  const tabsContainer = document.getElementById("tabs-container");
+  tabsBar.innerHTML = "";
+  tabsContainer.innerHTML = "";
+
+  const nomesPastas = Object.keys(Estado.modulos);
+  if (!Estado.abaAtiva || !nomesPastas.includes(Estado.abaAtiva)) {
+    Estado.abaAtiva = nomesPastas[0] || null;
+  }
+
+  for (let i = 0; i < nomesPastas.length; i++) {
+    const pasta = nomesPastas[i];
+    const dadosModulo = Estado.modulos[pasta];
+    const isAtiva = pasta === Estado.abaAtiva;
+
+    const btn = document.createElement("button");
+    btn.className = `tab-btn ${isAtiva ? "active" : ""}`;
+    btn.dataset.tab = pasta;
+    btn.textContent = pasta;
+    btn.addEventListener("click", () => {
+      Estado.abaAtiva = pasta;
+      localStorage.setItem("solaria_aba_ativa", pasta);
+      document.querySelectorAll(".tab-btn, .tab-content").forEach(el => el.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById(`tab-${pasta}`)?.classList.add("active");
+    });
+    tabsBar.appendChild(btn);
+
+    const section = document.createElement("section");
+    section.id = `tab-${pasta}`;
+    section.className = `tab-content ${isAtiva ? "active" : ""}`;
+    tabsContainer.appendChild(section);
+
+    if (dadosModulo.temCustomJS) {
+      const mod = await import(`./${pasta}/module.js?v=${Date.now()}`);
+      if (mod.render) mod.render(section, Estado);
+    } else {
+      renderizarListaPadrao(section, pasta, dadosModulo.registros);
+    }
+  }
+}
+
+function renderizarListaPadrao(section, pasta, registros) {
+  section.innerHTML = `
+    <input type="text" placeholder="Buscar em ${pasta}..." class="search-input">
+    <div class="cards-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+  `;
+  const input = section.querySelector(".search-input");
+  const list = section.querySelector(".cards-list");
+
+  const desenhar = () => {
+    const termo = input.value.toLowerCase();
+    list.innerHTML = "";
+    (registros || [])
+      .filter(item => (Estado.role === "GM" || item.visivelPlayer) && item.nome.toLowerCase().includes(termo))
+      .forEach(item => {
+        const card = document.createElement("div");
+        card.className = `card ${!item.visivelPlayer ? "card-gm-only" : ""}`;
+        card.id = `card-${item.id}`;
+        card.innerHTML = `
+          <div class="card-header">
+            <span>${item.nome} ${!item.visivelPlayer ? "🔒" : ""}</span>
+            <span class="card-tag">${item.tag || pasta}</span>
+          </div>
+          <div class="card-body">
+            <div>${item.desc || ""}</div>
+            ${Estado.role === "GM" && item.segredoGM ? `<div class="gm-secret"><strong>Segredo GM:</strong> ${item.segredoGM}</div>` : ""}
+          </div>
+        `;
+        card.addEventListener("click", () => card.classList.toggle("open"));
+        list.appendChild(card);
+      });
+  };
+
+  input.addEventListener("input", desenhar);
+  desenhar();
+}
+
+const badge = document.getElementById("role-badge");
+
+export function definirVisualizacao(role) {
+  if (Estado.realRole !== "GM") {
+    Estado.viewRole = "PLAYER";
+  } else {
+    Estado.viewRole = role;
+  }
+
+  if (badge) {
+    if (Estado.realRole !== "GM") {
+      badge.textContent = "Visão: Jogador";
+      badge.className = "role-badge role-player";
+      badge.style.cursor = "default";
+      badge.style.pointerEvents = "none";
+      badge.title = "";
+    } else {
+      badge.textContent = Estado.viewRole === "GM" ? "Visão: Mestre (GM)" : "Visão: Jogador";
+      badge.className = `role-badge ${Estado.viewRole === "GM" ? "role-gm" : "role-player"}`;
+      badge.style.cursor = "pointer";
+      badge.style.pointerEvents = "auto";
+      badge.title = "Clique para alternar modo de teste (Mestre / Jogador)";
+    }
+  }
+
+  carregarPainel();
+}
+
+export function configurarCargos(realRole) {
+  Estado.realRole = realRole;
+  definirVisualizacao(realRole);
+}
+
+export const definirCargo = configurarCargos;
+
+if (badge) {
+  badge.addEventListener("click", () => {
+    if (Estado.realRole !== "GM") return;
+    definirVisualizacao(Estado.viewRole === "GM" ? "PLAYER" : "GM");
+  });
+}
+
+let inicializado = false;
+
+OBR.onReady(async () => {
+  if (!inicializado) {
+    inicializado = true;
+    configurarArrasto();
+    const role = await OBR.player.getRole();
+    configurarCargos(role);
+  }
+});
+
+// Fallback seguro: se não estiver dentro de um iframe do Owlbear (teste direto em aba avulsa),
+// libera GM apenas se for janela raiz (window.self === window.top). Dentro do Owlbear, mantém PLAYER.
+setTimeout(() => {
+  if (!inicializado) {
+    inicializado = true;
+    configurarArrasto();
+    const isStandalone = window.self === window.top;
+    configurarCargos(isStandalone ? "GM" : "PLAYER");
+  }
+}, 500);
+
+=== ARQUIVO: \server.js ===
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+
+const PORT = 8081;
+
+const mimeTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".ico": "image/x-icon"
+};
+
+let sseClients = [];
+
+function notificarRecarregamento() {
+  sseClients.forEach((client) => client.write("data: reload\n\n"));
+}
+
+const SCRIPT_LIVE_RELOAD = `
+<script>
+  (function() {
+    const sse = new EventSource('/livereload');
+    sse.onmessage = () => {
+      console.log('⚡ [Solaria Dev] Atualização salva. Recarregando...');
+      location.reload();
+    };
+  })();
+</script>
+</body>`;
+
+function sincronizarModulosJson() {
+  const painelDir = path.join(__dirname, "painel");
+  const modulosPath = path.join(__dirname, "modulos.json");
+  const estrutura = {};
+
+  if (!fs.existsSync(painelDir)) return;
+
+  const itens = fs.readdirSync(painelDir, { withFileTypes: true });
+  itens.filter(i => i.isDirectory()).forEach(pasta => {
+    const nomePasta = pasta.name;
+    const caminhoPasta = path.join(painelDir, nomePasta);
+    const arquivos = fs.readdirSync(caminhoPasta);
+
+    estrutura[nomePasta] = {
+      temCustomJS: arquivos.includes("module.js"),
+      registros: []
+    };
+
+    arquivos.filter(f => f.endsWith(".json")).forEach(arq => {
+      try {
+        const conteudo = JSON.parse(fs.readFileSync(path.join(caminhoPasta, arq), "utf-8"));
+        if (Array.isArray(conteudo)) {
+          estrutura[nomePasta].registros.push(...conteudo);
+        } else {
+          conteudo.id = conteudo.id || `${nomePasta}-${arq.replace(".json", "")}`;
+          estrutura[nomePasta].registros.push(conteudo);
+        }
+      } catch (_) {}
+    });
+  });
+
+  fs.writeFileSync(modulosPath, JSON.stringify(estrutura, null, 2), "utf-8");
+}
+
+// 📦 GERAÇÃO AUTOMÁTICA DO PROJETO COMPLETO NO CTRL+S
+function gerarProjetoCompleto() {
+  try {
+    const extensoesValidas = [".js", ".html", ".css", ".json"];
+    let output = "";
+
+    function varrerDiretorio(dir) {
+      const itens = fs.readdirSync(dir, { withFileTypes: true });
+      for (const item of itens) {
+        const nome = item.name;
+        if (nome === ".git" || nome === "node_modules" || nome === "projeto_completo.txt" || nome === "package-lock.json") {
+          continue;
+        }
+        const fullPath = path.join(dir, nome);
+        if (item.isDirectory()) {
+          varrerDiretorio(fullPath);
+        } else if (item.isFile()) {
+          const ext = path.extname(nome).toLowerCase();
+          if (extensoesValidas.includes(ext)) {
+            const relPath = "\\" + path.relative(__dirname, fullPath);
+            const content = fs.readFileSync(fullPath, "utf-8");
+            output += `=== ARQUIVO: ${relPath} ===\n${content}\n\n`;
+          }
+        }
+      }
+    }
+
+    varrerDiretorio(__dirname);
+    fs.writeFileSync(path.join(__dirname, "projeto_completo.txt"), output, "utf-8");
+  } catch (err) {
+    console.error("Erro ao gerar projeto_completo.txt:", err.message);
+  }
+}
+
+let watchTimeout = null;
+fs.watch(__dirname, { recursive: true }, (eventType, filename) => {
+  if (!filename) return;
+  if (
+    filename.includes(".git") || 
+    filename === "modulos.json" || 
+    filename === "projeto_completo.txt"
+  ) return;
+
+  clearTimeout(watchTimeout);
+  watchTimeout = setTimeout(() => {
+    if (filename.startsWith("painel")) {
+      sincronizarModulosJson();
+    }
+    gerarProjetoCompleto();
+    notificarRecarregamento();
+  }, 120);
+});
+
+sincronizarModulosJson();
+gerarProjetoCompleto();
+
+http.createServer((req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS, POST");
+  res.setHeader("Access-Control-Allow-Headers", "*");
+  res.setHeader("Access-Control-Allow-Private-Network", "true");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    return res.end();
+  }
+
+  const urlPath = req.url.split("?")[0];
+
+  if (urlPath === "/livereload") {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Connection": "keep-alive"
+    });
+    sseClients.push(res);
+    req.on("close", () => {
+      sseClients = sseClients.filter((c) => c !== res);
+    });
+    return;
+  }
+
+  let cleanPath = urlPath.replace(/^\/solaria-companion/, "");
+  if (!cleanPath || cleanPath === "/") cleanPath = "/index.html";
+
+  if (cleanPath === "/manifest.json") {
+    const manifestPath = path.join(__dirname, "manifest.json");
+    if (fs.existsSync(manifestPath)) {
+      try {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+        manifest.name = `${manifest.name || "Solaria"} (DEV Local)`;
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        return res.end(JSON.stringify(manifest, null, 2));
+      } catch (_) {}
+    }
+  }
+
+  const filePath = path.join(__dirname, cleanPath);
+
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = mimeTypes[ext] || "text/plain; charset=utf-8";
+
+    if (ext === ".html") {
+      let html = fs.readFileSync(filePath, "utf-8");
+      if (html.includes("</body>")) {
+        html = html.replace("</body>", SCRIPT_LIVE_RELOAD);
+      } else {
+        html += SCRIPT_LIVE_RELOAD;
+      }
+      res.writeHead(200, { "Content-Type": contentType });
+      return res.end(html);
+    }
+
+    res.writeHead(200, { "Content-Type": contentType });
+    fs.createReadStream(filePath).pipe(res);
+  } else {
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("404 Not Found");
+  }
+}).listen(PORT, () => {
+  console.log(`\n==================================================`);
+  console.log(`⚡ Solaria Dev Server rodando em: http://localhost:${PORT}`);
+  console.log(`📦 Manifesto Local: http://localhost:${PORT}/manifest.json`);
+  console.log(`📝 projeto_completo.txt sendo atualizado automaticamente no Ctrl+S.`);
+  console.log(`==================================================\n`);
+});
+
+=== ARQUIVO: \ui\rich-editor.js ===
+/**
+ * Editor Universal de Texto Formatável (Solaria)
+ * Suporta toolbar, Markdown shortcuts (* + Espaço, [] + Espaço) e checklists interativos.
+ */
+export function criarRichEditor({ placeholder = "Digite seu texto...", valorInicial = "", onSalvar }) {
+  // Injeta estilos essenciais do editor caso não estejam presentes
+  if (!document.getElementById("css-rich-editor-shared")) {
+    const style = document.createElement("style");
+    style.id = "css-rich-editor-shared";
+    style.textContent = `
+      .solaria-editor-container {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 140px;
+        background: #16161e;
+        border: 1px solid #2f354d;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .solaria-editor-toolbar {
+        display: flex;
+        gap: 2px;
+        padding: 5px 8px;
+        background: #13141c;
+        border-bottom: 1px solid #24283b;
+        align-items: center;
+      }
+      .ed-btn {
+        background: transparent;
+        border: none;
+        color: #a9b1d6;
+        padding: 3px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: background 0.15s, color 0.15s;
+      }
+      .ed-btn:hover { background: #24283b; color: #fff; }
+      .ed-divider { width: 1px; height: 14px; background: #2f354d; margin: 0 4px; }
+      .solaria-editor-body {
+        flex: 1;
+        padding: 10px 12px;
+        color: #c0caf5;
+        font-size: 13px;
+        line-height: 1.6;
+        outline: none;
+        overflow-y: auto;
+      }
+      .solaria-editor-body[contenteditable]:empty::before {
+        content: attr(data-placeholder);
+        color: #565f89;
+        pointer-events: none;
+      }
+      .solaria-editor-body ul {
+        margin: 4px 0;
+        padding-left: 20px;
+      }
+      .todo-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin: 4px 0;
+        line-height: 1.4;
+      }
+      .todo-check {
+        cursor: pointer;
+        margin-top: 3px;
+        accent-color: #7aa2f7;
+      }
+      .todo-text {
+        flex: 1;
+        outline: none;
+      }
+      .todo-item.completed,
+      .todo-item.completed .todo-text {
+        text-decoration: line-through;
+        color: #565f89 !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const container = document.createElement("div");
+  container.className = "solaria-editor-container";
+
+  container.innerHTML = `
+    <div class="solaria-editor-toolbar">
+      <button type="button" class="ed-btn" data-cmd="bold" title="Negrito (Ctrl+B)"><b>B</b></button>
+      <button type="button" class="ed-btn" data-cmd="italic" title="Itálico (Ctrl+I)"><i>I</i></button>
+      <button type="button" class="ed-btn" data-cmd="underline" title="Sublinhado (Ctrl+U)"><u>U</u></button>
+      <button type="button" class="ed-btn" data-cmd="strikeThrough" title="Tachado"><s>S</s></button>
+      <div class="ed-divider"></div>
+      <button type="button" class="ed-btn" data-action="list" title="Lista com Marcadores (* + Espaço)">• Lista</button>
+      <button type="button" class="ed-btn" data-action="todo" title="Checklist ([] + Espaço)">☑ Tarefa</button>
+    </div>
+    <div class="solaria-editor-body" contenteditable="true" data-placeholder="${placeholder}"></div>
+  `;
+
+  const body = container.querySelector(".solaria-editor-body");
+  body.innerHTML = valorInicial || "";
+
+  // Sincroniza estado de checkboxes carregados do HTML salvo
+  body.querySelectorAll(".todo-check").forEach((cb) => {
+    cb.setAttribute("contenteditable", "false");
+    if (cb.hasAttribute("checked") || cb.closest(".todo-item")?.classList.contains("completed")) {
+      cb.checked = true;
+      cb.closest(".todo-item")?.classList.add("completed");
+    }
+  });
+
+  let debounceTimer;
+  function notificarAlteracao() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      if (typeof onSalvar === "function") {
+        onSalvar(body.innerHTML);
+      }
+    }, 400);
+  }
+
+  function inserirItemTodo() {
+    body.focus();
+    const tempId = "todo_" + Date.now();
+    const todoHtml = `<div class="todo-item" id="${tempId}"><input type="checkbox" class="todo-check" contenteditable="false"><span class="todo-text">&nbsp;</span></div>`;
+    document.execCommand("insertHTML", false, todoHtml);
+
+    const el = body.querySelector(`#${tempId}`);
+    if (el) {
+      el.removeAttribute("id");
+      const span = el.querySelector(".todo-text");
+      if (span) {
+        const sel = window.getSelection();
+        const r = document.createRange();
+        r.selectNodeContents(span);
+        r.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+    }
+    notificarAlteracao();
+  }
+
+  // Botões de Formatação Simples
+  container.querySelectorAll(".ed-btn[data-cmd]").forEach((btn) => {
+    btn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      document.execCommand(btn.dataset.cmd, false, null);
+      notificarAlteracao();
+    });
+  });
+
+  // Botões da Barra
+  container.querySelector('[data-action="list"]').addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    document.execCommand("insertUnorderedList", false, null);
+    notificarAlteracao();
+  });
+
+  container.querySelector('[data-action="todo"]').addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    inserirItemTodo();
+  });
+
+  // Interceptação de Atalhos no Teclado
+  body.addEventListener("keydown", (e) => {
+    // 1. Atalhos Markdown ao pressionar Espaço (* + Espaço ou [] + Espaço)
+    if (e.key === " " || e.code === "Space") {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) return;
+      const range = selection.getRangeAt(0);
+      const node = range.startContainer;
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textBefore = node.textContent.slice(0, range.startOffset);
+        const trimmed = textBefore.trim();
+
+        // Lista (* ou -)
+        if (trimmed === "*" || trimmed === "-") {
+          e.preventDefault();
+          const startIdx = textBefore.lastIndexOf(trimmed);
+          const delRange = document.createRange();
+          delRange.setStart(node, startIdx);
+          delRange.setEnd(node, range.startOffset);
+          selection.removeAllRanges();
+          selection.addRange(delRange);
+          document.execCommand("delete");
+          document.execCommand("insertUnorderedList");
+          notificarAlteracao();
+          return;
+        }
+
+        // Checklist ([] ou [ ])
+        if (trimmed === "[]" || trimmed === "[ ]") {
+          e.preventDefault();
+          const startIdx = textBefore.lastIndexOf(trimmed);
+          const delRange = document.createRange();
+          delRange.setStart(node, startIdx);
+          delRange.setEnd(node, range.startOffset);
+          selection.removeAllRanges();
+          selection.addRange(delRange);
+          document.execCommand("delete");
+          inserirItemTodo();
+          return;
+        }
+      }
+    }
+
+    // 2. Comportamento do Enter dentro de itens de Checklist
+    if (e.key === "Enter") {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) return;
+      const range = selection.getRangeAt(0);
+      const targetElement = range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? range.startContainer
+        : range.startContainer.parentElement;
+
+      const currentTodo = targetElement?.closest(".todo-item");
+      if (currentTodo) {
+        const textSpan = currentTodo.querySelector(".todo-text");
+        const textoAtual = textSpan ? textSpan.textContent.replace(/\u00a0/g, "").trim() : "";
+
+        // Se deu Enter numa linha de tarefa vazia, sai do modo todo
+        if (!textoAtual) {
+          e.preventDefault();
+          currentTodo.remove();
+          document.execCommand("insertParagraph");
+          notificarAlteracao();
+          return;
+        }
+
+        // Se tinha texto, cria outro item de checklist logo abaixo
+        e.preventDefault();
+        inserirItemTodo();
+      }
+    }
+  });
+
+  // Alternar Checkbox com Efeito Riscado e Persistência no HTML
+  function alternarCheck(cb) {
+    const item = cb.closest(".todo-item");
+    if (!item) return;
+
+    if (cb.checked) {
+      item.classList.add("completed");
+      cb.setAttribute("checked", "checked");
+    } else {
+      item.classList.remove("completed");
+      cb.removeAttribute("checked");
+    }
+    notificarAlteracao();
+  }
+
+  body.addEventListener("change", (e) => {
+    if (e.target.classList.contains("todo-check")) {
+      alternarCheck(e.target);
+    }
+  });
+
+  body.addEventListener("click", (e) => {
+    if (e.target.classList.contains("todo-check")) {
+      alternarCheck(e.target);
+    }
+  });
+
+  body.addEventListener("input", notificarAlteracao);
+
+  return {
+    elemento: container,
+    obterConteudo: () => body.innerHTML,
+    definirConteudo: (html) => {
+      body.innerHTML = html || "";
+    },
+    focar: () => body.focus()
+  };
+}
+

@@ -1,3 +1,5 @@
+import { SolariaSync } from "../../core/sync.js";
+
 const STORAGE_KEY = "solaria_notas_multiplas";
 
 export const NotesStore = {
@@ -16,6 +18,7 @@ export const NotesStore = {
             id: "note_" + Date.now(),
             titulo: "Diário de Campanha",
             conteudo: antiga,
+            visivelPlayer: false,
             atualizadaEm: Date.now()
           }
         ];
@@ -31,8 +34,11 @@ export const NotesStore = {
     return this.notas;
   },
 
-  salvar() {
+  salvar(notificarSala = true) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.notas));
+    if (notificarSala) {
+      SolariaSync.sincronizarNotasComSala(this.notas);
+    }
   },
 
   obterAtiva() {
@@ -43,17 +49,17 @@ export const NotesStore = {
     this.idAtiva = id;
   },
 
-criarNovaNota(titulo = "Nova Anotação") {
+  criarNovaNota(titulo = "Nova Anotação") {
     const nova = {
       id: "note_" + Date.now(),
       titulo,
       conteudo: "",
-      visivelPlayer: false, // <-- Nova propriedade (oculta por padrão)
+      visivelPlayer: false,
       atualizadaEm: Date.now()
     };
     this.notas.unshift(nova);
     this.idAtiva = nova.id;
-    this.salvar();
+    this.salvar(true);
     return nova;
   },
 
@@ -61,16 +67,22 @@ criarNovaNota(titulo = "Nova Anotação") {
     const nota = this.notas.find(n => String(n.id) === String(id));
     if (!nota) return;
     Object.assign(nota, dados, { atualizadaEm: Date.now() });
-    this.salvar();
+    this.salvar(true);
   },
 
   excluirNota(id) {
-    // Permite remover qualquer nota por id (mesmo se for a última)
     this.notas = this.notas.filter(n => String(n.id) !== String(id));
-    
     if (String(this.idAtiva) === String(id)) {
       this.idAtiva = this.notas[0]?.id || null;
     }
-    this.salvar();
+    this.salvar(true);
+  },
+
+  /**
+   * Mescla notas públicas recebidas do Room Metadata
+   */
+  mesclarNotasPublicas(notasPublicas = []) {
+    this.notas = notasPublicas;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.notas));
   }
 };

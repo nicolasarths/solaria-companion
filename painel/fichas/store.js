@@ -1,3 +1,5 @@
+import { SolariaSync } from "../../core/sync.js";
+
 const STORAGE_KEY = "solaria_fichas_custom";
 
 export const SheetStore = {
@@ -25,26 +27,37 @@ export const SheetStore = {
     return this.fichas;
   },
 
-  salvar() {
+  salvar(notificarSala = true) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.fichas));
+    if (notificarSala) {
+      SolariaSync.sincronizarFichasComSala(this.fichas);
+    }
   },
 
   obter(id) {
     return this.fichas.find(f => f.id === id);
   },
 
-  adicionarOuAtualizar(dados) {
+  adicionarOuAtualizar(dados, notificarSala = true) {
     const idx = this.fichas.findIndex(f => f.id === dados.id);
     if (idx >= 0) {
       this.fichas[idx] = dados;
     } else {
       this.fichas.unshift(dados);
     }
-    this.salvar();
+    this.salvar(notificarSala);
   },
 
   remover(id) {
     this.fichas = this.fichas.filter(f => f.id !== id);
-    this.salvar();
+    this.salvar(true);
+  },
+
+  /**
+   * Mescla dados recebidos da sala (para clientes Jogador)
+   */
+  mesclarFichasPublicas(fichasPublicas = []) {
+    this.fichas = fichasPublicas;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.fichas));
   }
 };

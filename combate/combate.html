@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Combate & Iniciativa - Solaria</title>
+  <link rel="stylesheet" href="./combate.css">
+</head>
+<body>
+  <header class="combat-header">
+    <div class="combat-header-title">
+      <span class="icon">⚔️</span>
+      <span class="title">Iniciativa</span>
+      <span id="round-badge" class="round-badge">Turno 1</span>
+    </div>
+    <div class="combat-header-actions">
+      <button type="button" id="btn-fechar-combate" class="btn-icon" title="Fechar painel">✕</button>
+    </div>
+  </header>
+
+  <nav class="combat-toolbar">
+    <button type="button" id="btn-toggle-add" class="btn-action">+ Participante</button>
+    <button type="button" id="btn-limpar-lista" class="btn-action btn-danger-action" title="Zerar lista de combate">Zerar</button>
+    <button type="button" id="btn-proximo-turno" class="btn-action btn-next-turn" title="Avançar para o próximo na fila">Próximo ➔</button>
+  </nav>
+
+  <!-- Gaveta de Adição de Participantes -->
+  <div id="add-drawer" class="add-drawer">
+    <div class="add-drawer-header">
+      <span>Adicionar Participante</span>
+      <button type="button" id="btn-fechar-drawer" class="btn-icon">✕</button>
+    </div>
+    <div class="add-drawer-body">
+      <label class="drawer-label">A partir de ficha existente:</label>
+      <select id="sel-ficha-existente" class="drawer-select">
+        <option value="">-- Selecione uma Ficha --</option>
+      </select>
+
+      <div class="drawer-divider"><span>OU</span></div>
+
+      <label class="drawer-label">Personagem Personalizado:</label>
+      <div class="drawer-row">
+        <input type="text" id="inp-custom-nome" class="drawer-input" style="flex:1;" placeholder="Nome do personagem...">
+        <input type="number" id="inp-custom-init" class="drawer-input input-init-custom" placeholder="Inic">
+      </div>
+
+      <button type="button" id="btn-confirmar-add" class="btn-action btn-confirm-add">+ Adicionar à Fila</button>
+    </div>
+  </div>
+
+  <!-- Lista de Iniciativa -->
+  <main id="combat-list-container" class="combat-list"></main>
+
+  <script type="module" src="./combate.js"></script>
+</body>
+</html>

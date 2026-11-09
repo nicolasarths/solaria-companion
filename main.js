@@ -11,8 +11,11 @@ import { configurarInterfaceNuvem } from "./core/cloud.js";
 import { SolariaSync } from "./core/sync.js";
 
 const ID_PAINEL = "solaria-painel-inferior-direito";
+const ID_COMBATE = "solaria-painel-combate";
 const ID_QUICK_STAT = "solaria-quick-stat-editor";
+
 let aberto = false;
+let combateAberto = false;
 
 const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 const BASE_URL = isLocal ? "" : "https://nicolasarths.github.io/solaria-companion";
@@ -33,6 +36,24 @@ export async function abrirOuFocarPainel() {
       disableClickAway: true
     });
     aberto = true;
+  }
+}
+
+export async function togglePainelCombate() {
+  if (!combateAberto) {
+    await OBR.popover.open({
+      id: ID_COMBATE,
+      url: BASE_URL + "/combate/combate.html",
+      height: 400,
+      width: 310,
+      anchorOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
+      transformOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
+      disableClickAway: true
+    });
+    combateAberto = true;
+  } else {
+    await OBR.popover.close(ID_COMBATE);
+    combateAberto = false;
   }
 }
 
@@ -60,6 +81,27 @@ async function inicializarHudsAoCarregarCena() {
 }
 
 OBR.onReady(async () => {
+  const currentRole = await OBR.player.getRole();
+
+  // Mantém o localStorage dos jogadores sempre sincronizado com os metadados da sala em segundo plano
+  SolariaSync.iniciarOuvinteSala({
+    onFichasRecebidas: (fichasPublicas) => {
+      if (currentRole !== "GM") {
+        localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichasPublicas));
+      }
+    },
+    onNotasRecebidas: (notasPublicas) => {
+      if (currentRole !== "GM") {
+        localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notasPublicas));
+      }
+    }
+  });
+
+  // Corrige o estado caso o usuário feche o painel de combate pelo botão "X" interno
+  OBR.broadcast.onMessage("solaria/combate-fechado", () => {
+    combateAberto = false;
+  });
+
   const btn = document.getElementById("toggle-painel");
   if (btn) {
     btn.addEventListener("click", async () => {
@@ -92,8 +134,8 @@ OBR.onReady(async () => {
 
   const btnCombate = document.getElementById("btn-combate");
   if (btnCombate) {
-    btnCombate.addEventListener("click", () => {
-      OBR.notification.show("Módulo de combate será implementado em breve! ⚔️");
+    btnCombate.addEventListener("click", async () => {
+      await togglePainelCombate();
     });
   }
 
@@ -122,7 +164,7 @@ OBR.onReady(async () => {
   const btnLimparSala = document.getElementById("btn-limpar-sala");
   if (btnLimparSala) {
     btnLimparSala.addEventListener("click", async () => {
-      const confirmou = window.confirm("Deseja apagar todas as fichas e notas da SALA do Owlbear Rodeo? (Apenas Mestre)");
+      const confirmou = window.confirm("Deseja apagar todas as fichas, notas e combate da SALA do Owlbear Rodeo? (Apenas Mestre)");
       if (!confirmou) return;
 
       try {
@@ -134,11 +176,12 @@ OBR.onReady(async () => {
 
         await OBR.room.setMetadata({
           "solaria/sync_fichas": [],
-          "solaria/sync_notas": []
+          "solaria/sync_notas": [],
+          "solaria/sync_combate": { rodada: 1, ativoIndex: 0, participantes: [] }
         });
 
         const itens = await OBR.scene.items.getItems();
-        const huds = itens.filter(i => i.metadata?.[METADATA_HUD_KEY] || i.metadata?.[METADATA_BTN_FICHA_KEY]);
+        const huds = itens.filter(i => i.metadata?.[METADATA_HUD_KEY] || i.metadata?.[METADATA_BTN_FICHA_KEY] || i.id.startsWith("solaria_hud_"));
         if (huds.length > 0) {
           await OBR.scene.items.deleteItems(huds.map(h => h.id));
         }
@@ -174,7 +217,7 @@ OBR.onReady(async () => {
     }
   });
 
-  // Ouvintes Globais em Segundo Plano com suporte a Edição de Jogador
+  // Ouvintes Globais em Segundo Plano
   OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
     const fichaAtualizada = e.data;
     if (!fichaAtualizada || !fichaAtualizada.id) return;
@@ -256,7 +299,6 @@ OBR.onReady(async () => {
     }
   });
 
-  // Interação com Elementos e Tokens no Grid
   OBR.player.onChange(async (player) => {
     const selection = player.selection;
     if (!selection || selection.length !== 1) return;

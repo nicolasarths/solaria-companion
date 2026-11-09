@@ -12,17 +12,7 @@ export const NotesStore = {
       if (Array.isArray(salvas)) {
         this.notas = salvas;
       } else {
-        const antiga = localStorage.getItem("solaria_notas") || "";
-        this.notas = [
-          {
-            id: "note_" + Date.now(),
-            titulo: "Diário de Campanha",
-            conteudo: antiga,
-            visivelPlayer: false,
-            atualizadaEm: Date.now()
-          }
-        ];
-        this.salvar();
+        this.notas = [];
       }
     } catch (_) {
       this.notas = [];

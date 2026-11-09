@@ -1,5 +1,20 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { SolariaSync } from "../core/sync.js";
+import { SheetStore } from "./fichas/store.js";
+import { NotesStore } from "./anotacoes/notes-store.js";
 
+export function configurarCargos(realRole) {
+  Estado.realRole = realRole;
+  definirVisualizacao(realRole);
+
+  // Se for o Mestre, garante que as fichas e notas salvas no seu PC sejam enviadas para a sala
+  if (realRole === "GM") {
+    SheetStore.carregar();
+    NotesStore.carregar();
+    SolariaSync.sincronizarFichasComSala(SheetStore.fichas);
+    SolariaSync.sincronizarNotasComSala(NotesStore.notas);
+  }
+}
 const ID_PAINEL = "solaria-painel-inferior-direito";
 
 export const Estado = {
@@ -205,11 +220,6 @@ export function definirVisualizacao(role) {
   }
 
   carregarPainel();
-}
-
-export function configurarCargos(realRole) {
-  Estado.realRole = realRole;
-  definirVisualizacao(realRole);
 }
 
 export const definirCargo = configurarCargos;

@@ -103,6 +103,7 @@
     import { calcularNovoStat } from "./calc.js";
     import { normalizarStats } from "./stats.js";
     import { atualizarHudToken } from "./token-hud.js";
+    import { SolariaSync } from "../../core/sync.js";
 
     const params = new URLSearchParams(window.location.search);
     const sheetId = params.get("sheetId");
@@ -130,8 +131,11 @@
       }, 30);
     }
 
+    let salvando = false;
     async function salvarEFechar() {
-      if (!ficha) return;
+      if (!ficha || salvando) return;
+      salvando = true;
+
       const antigoAtual = ficha.stats[statId].atual;
       const antigoMax = ficha.stats[statId].max;
 
@@ -140,18 +144,22 @@
 
       localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
 
-      OBR.onReady(async () => {
+      try {
         await atualizarHudToken(ficha);
+        await SolariaSync.sincronizarFichasComSala(fichas);
         await OBR.broadcast.sendMessage("solaria/ficha-stat-atualizado", { sheetId });
+      } catch (_) {}
+
+      try {
         await OBR.popover.close("solaria-quick-stat-editor");
-      });
+      } catch (_) {}
     }
 
     [inpAtual, inpMax].forEach(inp => {
       inp.addEventListener("keydown", (e) => {
         if (e.key === "Enter") salvarEFechar();
         if (e.key === "Escape") {
-          OBR.onReady(() => OBR.popover.close("solaria-quick-stat-editor"));
+          OBR.popover.close("solaria-quick-stat-editor");
         }
       });
     });

@@ -2,23 +2,11 @@ import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { SolariaSync } from "../core/sync.js";
 import { SheetStore } from "./fichas/store.js";
 import { NotesStore } from "./anotacoes/notes-store.js";
+import { METADATA_HUD_KEY, METADATA_BTN_FICHA_KEY } from "./fichas/token-hud.js";
 
-export function configurarCargos(realRole) {
-  Estado.realRole = realRole;
-  definirVisualizacao(realRole);
-
-  // Se for o Mestre, garante que as fichas e notas salvas no seu PC sejam enviadas para a sala
-  if (realRole === "GM") {
-    SheetStore.carregar();
-    NotesStore.carregar();
-    SolariaSync.sincronizarFichasComSala(SheetStore.fichas);
-    SolariaSync.sincronizarNotasComSala(NotesStore.notas);
-  }
-}
 const ID_PAINEL = "solaria-painel-inferior-direito";
 
 export const Estado = {
-  // Padrão seguro inicial: sempre PLAYER até confirmação do SDK
   realRole: "PLAYER",
   viewRole: "PLAYER",
   get role() {
@@ -112,6 +100,56 @@ function configurarArrasto() {
   });
 }
 
+function configurarBotoesCachePainel() {
+  const btnLimparCache = document.getElementById("btn-limpar-cache-painel");
+  const btnResetSala = document.getElementById("btn-reset-sala-painel");
+
+  if (btnLimparCache) {
+    btnLimparCache.addEventListener("click", () => {
+      const ok = window.confirm("Deseja apagar os dados locais do Solaria salvos neste navegador e recarregar?");
+      if (!ok) return;
+
+      Object.keys(localStorage)
+        .filter(k => k.startsWith("solaria_"))
+        .forEach(k => localStorage.removeItem(k));
+
+      try { OBR.notification.show("Armazenamento local limpo! 🧹"); } catch (_) {}
+      setTimeout(() => location.reload(), 300);
+    });
+  }
+
+  if (btnResetSala) {
+    btnResetSala.addEventListener("click", async () => {
+      const ok = window.confirm("ATENÇÃO: Deseja apagar todas as fichas e notas da SALA do Owlbear Rodeo? (Ação irreversível)");
+      if (!ok) return;
+
+      try {
+        const role = await OBR.player.getRole();
+        if (role !== "GM") {
+          alert("Apenas o Mestre pode resetar os dados da sala.");
+          return;
+        }
+
+        await OBR.room.setMetadata({
+          "solaria/sync_fichas": [],
+          "solaria/sync_notas": []
+        });
+
+        const itens = await OBR.scene.items.getItems();
+        const huds = itens.filter(i => i.metadata?.[METADATA_HUD_KEY] || i.metadata?.[METADATA_BTN_FICHA_KEY] || i.id.startsWith("solaria_hud_"));
+        if (huds.length > 0) {
+          await OBR.scene.items.deleteItems(huds.map(h => h.id));
+        }
+
+        try { OBR.notification.show("Sala do Owlbear e HUDs resetados! 🧹"); } catch (_) {}
+        setTimeout(() => location.reload(), 300);
+      } catch (err) {
+        alert("Erro ao resetar sala: " + err.message);
+      }
+    });
+  }
+}
+
 export async function carregarPainel() {
   const res = await fetch("../modulos.json");
   Estado.modulos = await res.json();
@@ -203,6 +241,11 @@ export function definirVisualizacao(role) {
     Estado.viewRole = role;
   }
 
+  const btnResetSala = document.getElementById("btn-reset-sala-painel");
+  if (btnResetSala) {
+    btnResetSala.style.display = Estado.realRole === "GM" ? "flex" : "none";
+  }
+
   if (badge) {
     if (Estado.realRole !== "GM") {
       badge.textContent = "Visão: Jogador";
@@ -222,6 +265,18 @@ export function definirVisualizacao(role) {
   carregarPainel();
 }
 
+export function configurarCargos(realRole) {
+  Estado.realRole = realRole;
+  definirVisualizacao(realRole);
+
+  if (realRole === "GM") {
+    SheetStore.carregar();
+    NotesStore.carregar();
+    SolariaSync.sincronizarFichasComSala(SheetStore.fichas);
+    SolariaSync.sincronizarNotasComSala(NotesStore.notas);
+  }
+}
+
 export const definirCargo = configurarCargos;
 
 if (badge) {
@@ -237,17 +292,17 @@ OBR.onReady(async () => {
   if (!inicializado) {
     inicializado = true;
     configurarArrasto();
+    configurarBotoesCachePainel();
     const role = await OBR.player.getRole();
     configurarCargos(role);
   }
 });
 
-// Fallback seguro: se não estiver dentro de um iframe do Owlbear (teste direto em aba avulsa),
-// libera GM apenas se for janela raiz (window.self === window.top). Dentro do Owlbear, mantém PLAYER.
 setTimeout(() => {
   if (!inicializado) {
     inicializado = true;
     configurarArrasto();
+    configurarBotoesCachePainel();
     const isStandalone = window.self === window.top;
     configurarCargos(isStandalone ? "GM" : "PLAYER");
   }

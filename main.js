@@ -12,9 +12,12 @@ export async function abrirOuFocarPainel() {
     const width = salvo.width || 480;
     const height = salvo.height || 680;
 
+    // Constrói o URL absoluto com base no local atual (funciona local e no GitHub Pages)
+    const painelUrl = new URL("painel/painel.html", window.location.href).href;
+
     await OBR.popover.open({
       id: ID_PAINEL,
-      url: "./painel/painel.html", // <-- Ajustado com ponto
+      url: painelUrl, 
       height: height,
       width: width,
       anchorOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
@@ -24,7 +27,6 @@ export async function abrirOuFocarPainel() {
     aberto = true;
   }
 }
-
 async function inicializarHudsAoCarregarCena() {
   try {
     const res = await fetch("./modulos.json"); // <-- Ajustado para o arquivo estático
@@ -142,9 +144,11 @@ OBR.onReady(async () => {
           cor: statCor || "#7aa2f7"
         }).toString();
 
+const quickStatUrl = new URL(`painel/fichas/quick-stat.html?${query}`, window.location.href).href;
+
         await OBR.popover.open({
           id: ID_QUICK_STAT,
-          url: `./painel/fichas/quick-stat.html?${query}`, // <-- Ajustado com ponto
+          url: quickStatUrl,
           width: 210,
           height: 115,
           anchorElementId: item.id,

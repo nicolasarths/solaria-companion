@@ -5,11 +5,21 @@ import { renderInventarioCard } from "./inventario.js";
 import { selecionarTokenNoGrid, desvincularToken, obterDadosTokenSelecionado, vincularTokenAoId } from "./obr-sync.js";
 import { atualizarHudToken, removerHudToken } from "./token-hud.js";
 
+// 🧩 COMPONENTE REUTILIZÁVEL: Pode ser importado noutros módulos
+export function UI_BotaoVisibilidade(isVisivel, classExtra = "btn-icon-action") {
+  return `
+    <button type="button" class="${classExtra} btn-toggle-visibilidade" title="${isVisivel ? "Visível para jogadores (clique para ocultar)" : "Oculto para jogadores (clique para revelar)"}">
+      ${isVisivel ? "👁️" : "🔒"}
+    </button>
+  `;
+}
+
 export function criarElementoCard(f, role, acoes) {
   const isGM = role === "GM";
+  const isVisivel = f.visivelPlayer !== false;
 
-  // Se a ficha não é visível para jogadores e o usuário atual é jogador, não renderiza
-  if (!isGM && !f.visivelPlayer) {
+  // Bloqueio Rigoroso: Se não for GM e a ficha estiver oculta, morre aqui e não renderiza nada.
+  if (!isGM && !isVisivel) {
     const placeholder = document.createElement("div");
     placeholder.style.display = "none";
     return placeholder;
@@ -19,8 +29,6 @@ export function criarElementoCard(f, role, acoes) {
   card.className = "sheet-card";
   card.id = `card-${f.id}`;
 
-  const isVisivel = f.visivelPlayer !== false;
-
   card.innerHTML = `
     <div class="sheet-card-header">
       <div class="sheet-title">
@@ -29,9 +37,7 @@ export function criarElementoCard(f, role, acoes) {
       <div class="sheet-actions">
         <span class="sheet-tag-badge">${f.tag || "NPC"}</span>
         ${isGM ? `
-          <button type="button" class="btn-icon-action btn-toggle-visibilidade" title="${isVisivel ? "Visível para jogadores (clique para ocultar)" : "Oculto para jogadores (clique para revelar)"}">
-            ${isVisivel ? "👁️" : "🔒"}
-          </button>
+          ${UI_BotaoVisibilidade(isVisivel)}
           <button type="button" class="btn-icon-action btn-edit" title="Editar Ficha">✏️</button>
         ` : ""}
       </div>
@@ -64,7 +70,6 @@ export function criarElementoCard(f, role, acoes) {
     </div>
   `;
 
-  // Se for visão de jogador, desativa inputs de stats para impedir edição
   if (!isGM) {
     card.querySelectorAll(".stat-calc-input, input").forEach(input => {
       input.setAttribute("readonly", "true");
@@ -74,28 +79,25 @@ export function criarElementoCard(f, role, acoes) {
     });
   }
 
-  // Alterna expansão do card (ignora cliques nos botões de ação)
   card.querySelector(".sheet-card-header").addEventListener("click", (e) => {
     if (
       e.target.closest(".btn-edit") ||
       e.target.closest(".btn-toggle-visibilidade") ||
       e.target.closest(".token-link-row") ||
       e.target.closest(".stat-calc-input")
-    ) {
-      return;
-    }
+    ) return;
+    
     card.classList.toggle("is-open");
   });
 
   card.querySelector(".btn-select-token")?.addEventListener("click", () => selecionarTokenNoGrid(f.tokenId));
 
   if (isGM) {
-    // Alternar visibilidade diretamente no card (um clique rápido)
     card.querySelector(".btn-toggle-visibilidade")?.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      f.visivelPlayer = !(f.visivelPlayer !== false);
-      acoes.onAtualizar();
+      f.visivelPlayer = !isVisivel;
+      acoes.onAtualizar(f); // Passa a ficha atualizada para sincronizar na rede
       await atualizarHudToken(f);
     });
 
@@ -105,7 +107,7 @@ export function criarElementoCard(f, role, acoes) {
       const idParaRemover = f.tokenId;
       f.tokenId = null;
       f.tokenNome = null;
-      acoes.onAtualizar();
+      acoes.onAtualizar(f);
 
       if (idParaRemover) {
         await removerHudToken(idParaRemover);
@@ -119,10 +121,9 @@ export function criarElementoCard(f, role, acoes) {
         alert("Selecione primeiro o token no mapa do Owlbear Rodeo!");
         return;
       }
-
       f.tokenId = token.tokenId;
       f.tokenNome = token.tokenNome;
-      acoes.onAtualizar();
+      acoes.onAtualizar(f);
 
       await vincularTokenAoId(token.tokenId, f.id);
       await atualizarHudToken(f);

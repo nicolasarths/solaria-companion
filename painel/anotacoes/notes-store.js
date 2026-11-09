@@ -43,11 +43,12 @@ export const NotesStore = {
     this.idAtiva = id;
   },
 
-  criarNovaNota(titulo = "Nova Anotação") {
+criarNovaNota(titulo = "Nova Anotação") {
     const nova = {
       id: "note_" + Date.now(),
       titulo,
       conteudo: "",
+      visivelPlayer: false, // <-- Nova propriedade (oculta por padrão)
       atualizadaEm: Date.now()
     };
     this.notas.unshift(nova);

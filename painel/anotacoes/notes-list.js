@@ -1,9 +1,6 @@
 import { NotesStore } from "./notes-store.js";
 import { criarCardNota } from "./note-card.js";
 
-/**
- * Gerenciador da lista de cartões de anotações e estado de abertura
- */
 export function criarGerenciadorNotas(containerCards, Estado) {
   const STORAGE_ABERTURA = "solaria_notas_estados_abertura";
   const estadosAbertura = JSON.parse(localStorage.getItem(STORAGE_ABERTURA) || "{}");
@@ -19,11 +16,15 @@ export function criarGerenciadorNotas(containerCards, Estado) {
 
   function renderizar() {
     containerCards.innerHTML = "";
+    const isGM = Estado.role === "GM";
 
-    if (!NotesStore.notas.length) {
+    // Filtra as notas: Mestre vê todas; Jogador vê apenas as visíveis
+    const notasFiltradas = NotesStore.notas.filter(n => isGM || n.visivelPlayer);
+
+    if (!notasFiltradas.length) {
       containerCards.innerHTML = `
         <div style="text-align: center; color: #565f89; padding: 24px; font-size: 12px;">
-          Nenhuma anotação criada. Clique em <b>+ Nova Anotação</b> acima.
+          Nenhuma anotação disponível. ${isGM ? "Clique em <b>+ Nova Anotação</b> acima." : ""}
         </div>
       `;
       return;
@@ -31,7 +32,7 @@ export function criarGerenciadorNotas(containerCards, Estado) {
 
     const fichas = obterFichasDisponiveis();
 
-    NotesStore.notas.forEach((nota, idx) => {
+    notasFiltradas.forEach((nota, idx) => {
       if (estadosAbertura[nota.id] === undefined) {
         estadosAbertura[nota.id] = idx === 0;
       }
@@ -40,10 +41,15 @@ export function criarGerenciadorNotas(containerCards, Estado) {
       const card = criarCardNota({
         nota,
         aberta,
+        role: Estado.role, // Passando a visão atual
         fichasDisponiveis: fichas,
         onToggle: (estaAberta) => {
           estadosAbertura[nota.id] = estaAberta;
           salvarEstados();
+        },
+        onVisibilidadeChange: () => { // Alternar visibilidade
+          NotesStore.atualizarNota(nota.id, { visivelPlayer: !nota.visivelPlayer });
+          renderizar();
         },
         onTituloChange: (novoTitulo) => {
           NotesStore.atualizarNota(nota.id, { titulo: novoTitulo });

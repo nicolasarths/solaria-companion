@@ -18,11 +18,25 @@ export function render(container, Estado) {
   SheetStore.carregar(Estado.modulos.fichas?.registros);
   sincronizarTodosHuds(SheetStore.fichas);
 
+  // 📡 SINCRONIZAÇÃO EM TEMPO REAL: Recebe as fichas atualizadas de outros jogadores/Mestre
+  OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
+    const fichaAtualizada = e.data;
+    SheetStore.adicionarOuAtualizar(fichaAtualizada);
+    await atualizarHudToken(fichaAtualizada);
+    renderLista();
+  });
+
+  OBR.broadcast.onMessage("solaria/ficha-excluida", async (e) => {
+    const idExcluir = e.data;
+    const f = SheetStore.obter(idExcluir);
+    if (f?.tokenId) await removerHudToken(f.tokenId);
+    SheetStore.remover(idExcluir);
+    renderLista();
+  });
+
   function focarCardFicha(sheetId) {
     const btnTab = document.querySelector('[data-tab="fichas"]');
-    if (btnTab && !btnTab.classList.contains("active")) {
-      btnTab.click();
-    }
+    if (btnTab && !btnTab.classList.contains("active")) btnTab.click();
     setTimeout(() => {
       const card = document.getElementById(`card-${sheetId}`);
       if (card) {
@@ -34,9 +48,7 @@ export function render(container, Estado) {
 
   function executarCriacaoComToken(tokenId, tokenNome) {
     const btnTab = document.querySelector('[data-tab="fichas"]');
-    if (btnTab && !btnTab.classList.contains("active")) {
-      btnTab.click();
-    }
+    if (btnTab && !btnTab.classList.contains("active")) btnTab.click();
 
     abrirForm({
       id: "f_" + Date.now(),
@@ -80,9 +92,7 @@ export function render(container, Estado) {
   });
 
   window.addEventListener("storage", (e) => {
-    if (e.key === "solaria_acao_pendente" && e.newValue) {
-      checarAcaoPendente();
-    }
+    if (e.key === "solaria_acao_pendente" && e.newValue) checarAcaoPendente();
   });
 
   function renderLista() {
@@ -106,14 +116,20 @@ export function render(container, Estado) {
     const desenhar = () => {
       listDiv.innerHTML = "";
       const termo = busca.value.toLowerCase();
+      
       const filtradas = SheetStore.fichas.filter(f => 
-        (Estado.role === "GM" || f.visivelPlayer) && f.nome.toLowerCase().includes(termo)
+        (Estado.role === "GM" || f.visivelPlayer !== false) && f.nome.toLowerCase().includes(termo)
       );
 
       filtradas.forEach(f => {
         const card = criarElementoCard(f, Estado.role, {
           onEditar: (item) => abrirForm(item),
-          onAtualizar: () => { SheetStore.salvar(); desenhar(); }
+          onAtualizar: (fichaAtualizada) => { 
+            SheetStore.salvar(); 
+            // 📡 Envia a ficha alterada para os jogadores verem instantaneamente
+            if (fichaAtualizada) OBR.broadcast.sendMessage("solaria/ficha-sync", fichaAtualizada);
+            desenhar(); 
+          }
         });
         listDiv.appendChild(card);
       });
@@ -124,6 +140,7 @@ export function render(container, Estado) {
           callbackMutacao(ficha);
           SheetStore.salvar();
           await atualizarHudToken(ficha);
+          OBR.broadcast.sendMessage("solaria/ficha-sync", ficha); // 📡 Sincroniza cálculos
         }
       });
     };
@@ -140,12 +157,14 @@ export function render(container, Estado) {
       async (dadosSalvos) => {
         SheetStore.adicionarOuAtualizar(dadosSalvos);
         await atualizarHudToken(dadosSalvos);
+        OBR.broadcast.sendMessage("solaria/ficha-sync", dadosSalvos); // 📡 Sincroniza formulário salvo
         renderLista();
       },
       async (idExcluir) => {
         const f = SheetStore.obter(idExcluir);
         if (f?.tokenId) await removerHudToken(f.tokenId);
         SheetStore.remover(idExcluir);
+        OBR.broadcast.sendMessage("solaria/ficha-excluida", idExcluir); // 📡 Sincroniza exclusão
         renderLista();
       }
     );

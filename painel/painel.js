@@ -90,7 +90,7 @@ function configurarArrasto() {
 }
 
 export async function carregarPainel() {
-const res = await fetch("./modulos.json");
+const res = await fetch("../modulos.json");
   Estado.modulos = await res.json();
 
   const tabsBar = document.getElementById("tabs-bar");

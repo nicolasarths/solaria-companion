@@ -6,18 +6,19 @@ const ID_PAINEL = "solaria-painel-inferior-direito";
 const ID_QUICK_STAT = "solaria-quick-stat-editor";
 let aberto = false;
 
+// 🔥 SOLUÇÃO DEFINITIVA: Força o caminho absoluto no GitHub Pages
+const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const BASE_URL = isLocal ? "" : "https://nicolasarths.github.io/solaria-companion";
+
 export async function abrirOuFocarPainel() {
   if (!aberto) {
     const salvo = JSON.parse(localStorage.getItem("solaria_painel_dimensoes") || "{}");
     const width = salvo.width || 480;
     const height = salvo.height || 680;
 
-    // Constrói o URL absoluto com base no local atual (funciona local e no GitHub Pages)
-    const painelUrl = new URL("painel/painel.html", window.location.href).href;
-
     await OBR.popover.open({
       id: ID_PAINEL,
-      url: painelUrl, 
+      url: BASE_URL + "/painel/painel.html",
       height: height,
       width: width,
       anchorOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
@@ -27,9 +28,10 @@ export async function abrirOuFocarPainel() {
     aberto = true;
   }
 }
+
 async function inicializarHudsAoCarregarCena() {
   try {
-    const res = await fetch("./modulos.json"); // <-- Ajustado para o arquivo estático
+    const res = await fetch(BASE_URL + "/modulos.json");
     const modulos = await res.json();
     let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
 
@@ -48,7 +50,6 @@ async function inicializarHudsAoCarregarCena() {
 }
 
 OBR.onReady(async () => {
-  // 1. Botão Principal do Painel
   const btn = document.getElementById("toggle-painel");
   if (btn) {
     btn.addEventListener("click", async () => {
@@ -61,7 +62,6 @@ OBR.onReady(async () => {
     });
   }
 
-  // 2. Controlo: Exibir/Ocultar Stats
   const toggleStats = document.getElementById("toggle-stats");
   if (toggleStats) {
     toggleStats.checked = localStorage.getItem("solaria_exibir_stats") !== "false";
@@ -72,7 +72,6 @@ OBR.onReady(async () => {
     });
   }
 
-  // 3. Controlo: Auto-Abrir Painel
   const toggleAuto = document.getElementById("toggle-autoabrir");
   if (toggleAuto) {
     toggleAuto.checked = localStorage.getItem("solaria_auto_abrir") === "true";
@@ -81,7 +80,6 @@ OBR.onReady(async () => {
     });
   }
 
-  // 4. Botão de Combate
   const btnCombate = document.getElementById("btn-combate");
   if (btnCombate) {
     btnCombate.addEventListener("click", () => {
@@ -89,7 +87,6 @@ OBR.onReady(async () => {
     });
   }
 
-  // 5. Verifica se deve auto-abrir o painel na inicialização
   const autoAbrir = localStorage.getItem("solaria_auto_abrir") === "true";
   if (autoAbrir && !aberto) {
     setTimeout(() => abrirOuFocarPainel(), 500);
@@ -107,7 +104,6 @@ OBR.onReady(async () => {
     }
   });
 
-  // 6. Ouve seleção no mapa
   OBR.player.onChange(async (player) => {
     const selection = player.selection;
     if (!selection || selection.length !== 1) return;
@@ -144,11 +140,9 @@ OBR.onReady(async () => {
           cor: statCor || "#7aa2f7"
         }).toString();
 
-const quickStatUrl = new URL(`painel/fichas/quick-stat.html?${query}`, window.location.href).href;
-
         await OBR.popover.open({
           id: ID_QUICK_STAT,
-          url: quickStatUrl,
+          url: BASE_URL + `/painel/fichas/quick-stat.html?${query}`,
           width: 210,
           height: 115,
           anchorElementId: item.id,

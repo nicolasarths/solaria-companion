@@ -11,7 +11,7 @@ export function render(container, Estado) {
     const link = document.createElement("link");
     link.id = "css-fichas";
     link.rel = "stylesheet";
-    link.href = "/painel/fichas/style.css";
+    link.href = "./fichas/style.css";
     document.head.appendChild(link);
   }
 

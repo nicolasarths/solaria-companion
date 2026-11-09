@@ -9,7 +9,7 @@ export function render(container, Estado) {
     const link = document.createElement("link");
     link.id = "css-anotacoes";
     link.rel = "stylesheet";
-    link.href = "/painel/anotacoes/style.css";
+    link.href = "./anotacoes/style.css";
     document.head.appendChild(link);
   }
 

@@ -7,7 +7,7 @@
   "icon": "/vite.svg",
   "action": {
     "title": "Solaria Companion",
-    "icon": "/solaria-companion/icon.svg",
+    "icon": "/solaria-companion/favicon.svg",
     "popover": "/solaria-companion/index.html",
     "height": 500,
     "width": 360

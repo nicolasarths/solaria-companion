@@ -1673,7 +1673,7 @@ input:checked + .slider:before {
 
   <button type="button" id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>
 
-  <script type="module" src="./main.js?v=2026.11.9-234"></script>
+  <script type="module" src="./main.js?v=2026.11.10-227"></script>
 </body>
 </html>
 
@@ -2033,7 +2033,7 @@ OBR.onReady(async () => {
 {
   "manifest_version": 1,
   "name": "Solaria Companion",
-  "version": "2026.11.9-234",
+  "version": "2026.11.10-227",
   "description": "Extensão para Solaria no Owlbear Rodeo",
   "author": "Nicolas Arths",
   "icon": "/solaria-companion/favicon.svg",
@@ -2324,7 +2324,7 @@ export function render(container, Estado) {
 }
 
 === ARQUIVO: \painel\anotacoes\note-card.js ===
-import { criarRichEditor } from "../../ui/rich-editor.js";
+import { criarRichEditor } from "../../ui/rich-editor/rich-editor.js";
 
 function obterIconePermissaoNota(nota) {
   if (nota.visivelPlayer === false) return "🔒";
@@ -4105,96 +4105,97 @@ input:focus {
 
   <div id="hint-text" class="hint">Digite ex: <b>-10</b>, <b>+5</b>, <b>/2</b> e tecle <b>Enter</b></div>
 
-  <script type="module">
-    import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-    import { calcularNovoStat } from "./calc.js";
-    import { normalizarStats } from "./stats.js";
-    import { atualizarHudToken } from "./token-hud.js";
-    import { SolariaSync } from "../../core/sync.js";
-
-    const params = new URLSearchParams(window.location.search);
-    const sheetId = params.get("sheetId");
-    const statId = params.get("statId");
-    const statLabel = params.get("label") || statId?.toUpperCase();
-    const cor = params.get("cor") || "#7aa2f7";
-
-    document.documentElement.style.setProperty("--cor-borda", cor);
-    document.getElementById("stat-label").textContent = statLabel;
-
-    const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
-    const ficha = fichas.find(f => f.id === sheetId);
-
-    const inpAtual = document.getElementById("inp-atual");
-    const inpMax = document.getElementById("inp-max");
-    const hintText = document.getElementById("hint-text");
-
-    let isEditavel = true;
-
-    OBR.onReady(async () => {
-      const role = await OBR.player.getRole();
-      const isGM = role === "GM";
-      isEditavel = isGM || (ficha && ficha.editavelPlayer === true);
-
-      if (!isEditavel) {
-        inpAtual.setAttribute("readonly", "true");
-        inpMax.setAttribute("readonly", "true");
-        inpAtual.style.cursor = "default";
-        inpMax.style.cursor = "default";
-        hintText.textContent = "🔒 Apenas Leitura (Mestre não liberou edição)";
-        hintText.style.color = "#f7768e";
-      }
-    });
-
-    if (ficha) {
-      document.getElementById("ficha-nome").textContent = ficha.nome;
-      ficha.stats = normalizarStats(ficha.stats);
-      inpAtual.value = ficha.stats[statId].atual;
-      inpMax.value = ficha.stats[statId].max;
-      setTimeout(() => {
-        inpAtual.focus();
-        inpAtual.select();
-      }, 30);
-    }
-
-    let salvando = false;
-    async function salvarEFechar() {
-      if (!ficha || salvando || !isEditavel) return;
-      salvando = true;
-
-      const antigoAtual = ficha.stats[statId].atual;
-      const antigoMax = ficha.stats[statId].max;
-
-      ficha.stats[statId].atual = calcularNovoStat(antigoAtual, inpAtual.value);
-      ficha.stats[statId].max = calcularNovoStat(antigoMax, inpMax.value);
-
-      localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
-
-      try {
-        const role = await OBR.player.getRole();
-        if (role === "GM") {
-          await atualizarHudToken(ficha);
-          await SolariaSync.sincronizarFichasComSala(fichas);
-        }
-        await OBR.broadcast.sendMessage("solaria/ficha-sync", ficha);
-        await OBR.broadcast.sendMessage("solaria/ficha-stat-atualizado", { sheetId });
-      } catch (_) {}
-
-      try {
-        await OBR.popover.close("solaria-quick-stat-editor");
-      } catch (_) {}
-    }
-
-    [inpAtual, inpMax].forEach(inp => {
-      inp.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") salvarEFechar();
-        if (e.key === "Escape") {
-          OBR.popover.close("solaria-quick-stat-editor");
-        }
-      });
-    });
-  </script>
+  <script type="module" src="./quick-stat.js"></script>
 </body>
 </html>
+
+=== ARQUIVO: \painel\fichas\quick-stat.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { calcularNovoStat } from "./calc.js";
+import { normalizarStats } from "./stats.js";
+import { atualizarHudToken } from "./token-hud.js";
+import { SolariaSync } from "../../core/sync.js";
+
+const params = new URLSearchParams(window.location.search);
+const sheetId = params.get("sheetId");
+const statId = params.get("statId");
+const statLabel = params.get("label") || statId?.toUpperCase();
+const cor = params.get("cor") || "#7aa2f7";
+
+document.documentElement.style.setProperty("--cor-borda", cor);
+document.getElementById("stat-label").textContent = statLabel;
+
+const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+const ficha = fichas.find(f => f.id === sheetId);
+
+const inpAtual = document.getElementById("inp-atual");
+const inpMax = document.getElementById("inp-max");
+const hintText = document.getElementById("hint-text");
+
+let isEditavel = true;
+
+OBR.onReady(async () => {
+  const role = await OBR.player.getRole();
+  const isGM = role === "GM";
+  isEditavel = isGM || (ficha && ficha.editavelPlayer === true);
+
+  if (!isEditavel) {
+    inpAtual.setAttribute("readonly", "true");
+    inpMax.setAttribute("readonly", "true");
+    inpAtual.style.cursor = "default";
+    inpMax.style.cursor = "default";
+    hintText.textContent = "🔒 Apenas Leitura (Mestre não liberou edição)";
+    hintText.style.color = "#f7768e";
+  }
+});
+
+if (ficha) {
+  document.getElementById("ficha-nome").textContent = ficha.nome;
+  ficha.stats = normalizarStats(ficha.stats);
+  inpAtual.value = ficha.stats[statId].atual;
+  inpMax.value = ficha.stats[statId].max;
+  setTimeout(() => {
+    inpAtual.focus();
+    inpAtual.select();
+  }, 30);
+}
+
+let salvando = false;
+async function salvarEFechar() {
+  if (!ficha || salvando || !isEditavel) return;
+  salvando = true;
+
+  const antigoAtual = ficha.stats[statId].atual;
+  const antigoMax = ficha.stats[statId].max;
+
+  ficha.stats[statId].atual = calcularNovoStat(antigoAtual, inpAtual.value);
+  ficha.stats[statId].max = calcularNovoStat(antigoMax, inpMax.value);
+
+  localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
+
+  try {
+    const role = await OBR.player.getRole();
+    if (role === "GM") {
+      await atualizarHudToken(ficha);
+      await SolariaSync.sincronizarFichasComSala(fichas);
+    }
+    await OBR.broadcast.sendMessage("solaria/ficha-sync", ficha);
+    await OBR.broadcast.sendMessage("solaria/ficha-stat-atualizado", { sheetId });
+  } catch (_) {}
+
+  try {
+    await OBR.popover.close("solaria-quick-stat-editor");
+  } catch (_) {}
+}
+
+[inpAtual, inpMax].forEach(inp => {
+  inp.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") salvarEFechar();
+    if (e.key === "Escape") {
+      OBR.popover.close("solaria-quick-stat-editor");
+    }
+  });
+});
 
 === ARQUIVO: \painel\fichas\stats.js ===
 import { calcularNovoStat } from "./calc.js";
@@ -5686,20 +5687,14 @@ setTimeout(() => {
 const fs = require("fs");
 const path = require("path");
 
-/**
- * Escaneia a pasta /painel e compila o modulos.json na raiz
- * @param {string} rootDir - Diretório raiz do projeto
- */
+let isGenerating = false;
+
 function sincronizarModulosJson(rootDir = path.resolve(__dirname, "..")) {
   const painelDir = path.join(rootDir, "painel");
   const modulosPath = path.join(rootDir, "modulos.json");
   const estrutura = {};
-  const resumo = {};
 
-  if (!fs.existsSync(painelDir)) {
-    console.warn("⚠️ [Builder] Pasta /painel não encontrada para gerar modulos.json.");
-    return;
-  }
+  if (!fs.existsSync(painelDir)) return;
 
   const itens = fs.readdirSync(painelDir, { withFileTypes: true });
 
@@ -5713,7 +5708,6 @@ function sincronizarModulosJson(rootDir = path.resolve(__dirname, "..")) {
       registros: []
     };
 
-    // Lê todos os arquivos .json presentes na pasta do módulo (ex: painel/fichas/guarda.json)
     arquivos.filter(f => f.endsWith(".json")).forEach(arq => {
       try {
         const conteudo = JSON.parse(fs.readFileSync(path.join(caminhoPasta, arq), "utf-8"));
@@ -5726,46 +5720,42 @@ function sincronizarModulosJson(rootDir = path.resolve(__dirname, "..")) {
           conteudo.id = conteudo.id || `${nomePasta}-${arq.replace(".json", "")}`;
           estrutura[nomePasta].registros.push(conteudo);
         }
-      } catch (err) {
-        console.error(`❌ [Builder] Erro ao ler JSON ${nomePasta}/${arq}:`, err.message);
-      }
+      } catch (_) {}
     });
-
-    resumo[nomePasta] = estrutura[nomePasta].registros.length;
   });
 
-  fs.writeFileSync(modulosPath, JSON.stringify(estrutura, null, 2), "utf-8");
-
-  const detalhes = Object.entries(resumo).map(([k, v]) => `${k}: ${v}`).join(", ");
-  console.log(`📁 [Builder] modulos.json sincronizado com sucesso! (${detalhes})`);
+  fs.writeFileSync(modulosPath, JSON.stringify(estrutura, null, 2), { encoding: "utf-8", flag: "w" });
 }
 
-/**
- * Gera o snapshot consolidado de código do projeto
- */
 function gerarProjetoCompleto(rootDir = path.resolve(__dirname, "..")) {
+  if (isGenerating) return;
+  isGenerating = true;
+
   try {
     const extensoesValidas = [".js", ".html", ".css", ".json"];
+    const destino = path.join(rootDir, "projeto_completo.txt");
     let output = "";
 
     function varrerDiretorio(dir) {
       const itens = fs.readdirSync(dir, { withFileTypes: true });
       for (const item of itens) {
-        const nome = item.name;
+        const nome = item.name.toLowerCase();
+
+        // Ignora estritamente pastas pesadas e qualquer variante do arquivo de snapshot
         if (
           nome === ".git" || 
           nome === "node_modules" || 
-          nome === "projeto_completo.txt" || 
+          nome.startsWith("projeto_completo") || 
           nome === "package-lock.json"
         ) {
           continue;
         }
 
-        const fullPath = path.join(dir, nome);
+        const fullPath = path.join(dir, item.name);
         if (item.isDirectory()) {
           varrerDiretorio(fullPath);
         } else if (item.isFile()) {
-          const ext = path.extname(nome).toLowerCase();
+          const ext = path.extname(item.name).toLowerCase();
           if (extensoesValidas.includes(ext)) {
             const relPath = "\\" + path.relative(rootDir, fullPath);
             const content = fs.readFileSync(fullPath, "utf-8");
@@ -5776,13 +5766,17 @@ function gerarProjetoCompleto(rootDir = path.resolve(__dirname, "..")) {
     }
 
     varrerDiretorio(rootDir);
-    fs.writeFileSync(path.join(rootDir, "projeto_completo.txt"), output, "utf-8");
+
+    // Limpa o arquivo primeiro e grava com flag 'w' explícita
+    fs.writeFileSync(destino, output, { encoding: "utf-8", flag: "w" });
+    console.log(`📝 [Builder] projeto_completo.txt regerado do ZERO com sucesso.`);
   } catch (err) {
-    console.error("Erro ao gerar projeto_completo.txt:", err.message);
+    console.error("❌ [Builder] Erro ao gerar projeto_completo.txt:", err.message);
+  } finally {
+    isGenerating = false;
   }
 }
 
-// Permite execução direta no terminal: node server/builder.js
 if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   sincronizarModulosJson(root);
@@ -6101,28 +6095,26 @@ function iniciarWatcher(rootDir) {
   fs.watch(rootDir, { recursive: true }, (eventType, filename) => {
     if (!filename) return;
 
-    // Normaliza separadores de caminho (Windows vs POSIX)
-    const norm = filename.replace(/\\/g, "/");
+    const norm = filename.replace(/\\/g, "/").toLowerCase();
 
-    // Ignora alterações em diretórios internos e nos arquivos gerados pelo próprio watcher
+    // Ignora qualquer eco gerado pelos próprios arquivos de build
     if (
       norm.includes(".git/") || 
       norm.includes("node_modules/") || 
-      norm.endsWith("modulos.json") || 
-      norm.endsWith("projeto_completo.txt")
+      norm.includes("modulos.json") || 
+      norm.includes("projeto_completo")
     ) {
       return;
     }
 
     clearTimeout(watchTimeout);
     watchTimeout = setTimeout(() => {
-      // Se qualquer arquivo dentro de painel/ for criado, editado ou excluído, recompila modulos.json
       if (norm.startsWith("painel/")) {
         sincronizarModulosJson(rootDir);
       }
       gerarProjetoCompleto(rootDir);
       notificarRecarregamento();
-    }, 120);
+    }, 250); // 250ms garante que o Windows terminou todas as rajadas de escrita
   });
 }
 
@@ -6131,282 +6123,460 @@ module.exports = { iniciarWatcher };
 === ARQUIVO: \server.js ===
 require("./server/index.js");
 
-=== ARQUIVO: \ui\rich-editor.js ===
+=== ARQUIVO: \ui\rich-editor\checklist.js ===
 /**
- * Editor Universal de Texto Formatável (Solaria)
- * Suporta toolbar, Markdown shortcuts (* + Espaço, [] + Espaço) e checklists interativos.
+ * Gerenciador de Elementos de Checklist do Solaria Editor
+ * Responsabilidade: Criar nós de checklist no DOM e sincronizar estados sem HTML em string.
+ */
+
+/**
+ * Cria programaticamente um nó de item de checklist via DOM puro
+ * @param {string} textoInicial - Texto inicial do span
+ * @returns {HTMLDivElement} Elemento .todo-item pronto
+ */
+export function criarElementoTodo(textoInicial = "") {
+  const item = document.createElement("div");
+  item.className = "todo-item";
+
+  const check = document.createElement("input");
+  check.type = "checkbox";
+  check.className = "todo-check";
+  // IMPORTANTE: contentEditable false impede que o cursor quebre a checkbox
+  check.setAttribute("contenteditable", "false");
+
+  const textSpan = document.createElement("span");
+  textSpan.className = "todo-text";
+  textSpan.textContent = textoInicial || "\u00a0"; // Espaço não-quebrável para manter foco
+
+  item.appendChild(check);
+  item.appendChild(textSpan);
+
+  return item;
+}
+
+/**
+ * Insere um novo item de tarefa na posição atual do cursor do editor
+ * @param {HTMLDivElement} editorBody - Elemento com contenteditable
+ * @param {Function} aoModificar - Callback para disparar debounce de salvamento
+ */
+export function inserirItemTodoNoCursor(editorBody, aoModificar) {
+  editorBody.focus();
+
+  const novoItem = criarElementoTodo("");
+  const selection = window.getSelection();
+
+  if (!selection || !selection.rangeCount) {
+    editorBody.appendChild(novoItem);
+  } else {
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(novoItem);
+
+    // Reposiciona o cursor dentro do span de texto da nova tarefa
+    const spanTexto = novoItem.querySelector(".todo-text");
+    if (spanTexto) {
+      const novoRange = document.createRange();
+      novoRange.selectNodeContents(spanTexto);
+      novoRange.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(novoRange);
+    }
+  }
+
+  if (typeof aoModificar === "function") aoModificar();
+}
+
+/**
+ * Alterna a marcação visual e o atributo checked do elemento
+ * @param {HTMLInputElement} checkbox - Elemento input checkbox clicado
+ * @param {Function} aoModificar - Callback de salvamento
+ */
+export function alternarStatusCheck(checkbox, aoModificar) {
+  const itemPai = checkbox.closest(".todo-item");
+  if (!itemPai) return;
+
+  if (checkbox.checked) {
+    itemPai.classList.add("completed");
+    checkbox.setAttribute("checked", "checked");
+  } else {
+    itemPai.classList.remove("completed");
+    checkbox.removeAttribute("checked");
+  }
+
+  if (typeof aoModificar === "function") aoModificar();
+}
+
+/**
+ * Garante que checkboxes preexistentes no HTML salvo mantenham contenteditable="false" e classes corretas
+ * @param {HTMLDivElement} editorBody - Container do editor
+ */
+export function inicializarCheckboxesExistentes(editorBody) {
+  editorBody.querySelectorAll(".todo-check").forEach((cb) => {
+    cb.setAttribute("contenteditable", "false");
+    const itemPai = cb.closest(".todo-item");
+    if (cb.hasAttribute("checked") || itemPai?.classList.contains("completed")) {
+      cb.checked = true;
+      itemPai?.classList.add("completed");
+    }
+  });
+}
+
+=== ARQUIVO: \ui\rich-editor\rich-editor.css ===
+.solaria-editor-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 140px;
+  background: #16161e;
+  border: 1px solid #2f354d;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.solaria-editor-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 5px 8px;
+  background: #13141c;
+  border-bottom: 1px solid #24283b;
+  align-items: center;
+}
+
+.ed-btn {
+  background: transparent;
+  border: none;
+  color: #a9b1d6;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ed-btn:hover {
+  background: #24283b;
+  color: #ffffff;
+}
+
+.ed-divider {
+  width: 1px;
+  height: 14px;
+  background: #2f354d;
+  margin: 0 4px;
+}
+
+.solaria-editor-body {
+  flex: 1;
+  padding: 10px 12px;
+  color: #c0caf5;
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+  overflow-y: auto;
+}
+
+.solaria-editor-body[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: #565f89;
+  pointer-events: none;
+}
+
+.solaria-editor-body ul {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+.todo-check {
+  cursor: pointer;
+  margin-top: 3px;
+  accent-color: #7aa2f7;
+}
+
+.todo-text {
+  flex: 1;
+  outline: none;
+}
+
+.todo-item.completed,
+.todo-item.completed .todo-text {
+  text-decoration: line-through;
+  color: #565f89 !important;
+}
+
+=== ARQUIVO: \ui\rich-editor\rich-editor.js ===
+import { criarBarraFerramentas } from "./toolbar.js";
+import { 
+  inserirItemTodoNoCursor, 
+  alternarStatusCheck, 
+  inicializarCheckboxesExistentes 
+} from "./checklist.js";
+import { configurarAtalhosTeclado } from "./shortcuts.js";
+
+/**
+ * Ponto Central de Montagem do Solaria Rich Editor
+ * Responsabilidade: Orquestrar toolbar, área editável e ciclo de vida do componente.
  */
 export function criarRichEditor({ placeholder = "Digite seu texto...", valorInicial = "", onSalvar }) {
-  // Injeta estilos essenciais do editor caso não estejam presentes
+  // Injeta link da folha de estilos se ainda não presente no documento
   if (!document.getElementById("css-rich-editor-shared")) {
-    const style = document.createElement("style");
-    style.id = "css-rich-editor-shared";
-    style.textContent = `
-      .solaria-editor-container {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-height: 140px;
-        background: #16161e;
-        border: 1px solid #2f354d;
-        border-radius: 8px;
-        overflow: hidden;
-      }
-      .solaria-editor-toolbar {
-        display: flex;
-        gap: 2px;
-        padding: 5px 8px;
-        background: #13141c;
-        border-bottom: 1px solid #24283b;
-        align-items: center;
-      }
-      .ed-btn {
-        background: transparent;
-        border: none;
-        color: #a9b1d6;
-        padding: 3px 6px;
-        border-radius: 4px;
-        font-size: 11px;
-        cursor: pointer;
-        font-weight: 600;
-        transition: background 0.15s, color 0.15s;
-      }
-      .ed-btn:hover { background: #24283b; color: #fff; }
-      .ed-divider { width: 1px; height: 14px; background: #2f354d; margin: 0 4px; }
-      .solaria-editor-body {
-        flex: 1;
-        padding: 10px 12px;
-        color: #c0caf5;
-        font-size: 13px;
-        line-height: 1.6;
-        outline: none;
-        overflow-y: auto;
-      }
-      .solaria-editor-body[contenteditable]:empty::before {
-        content: attr(data-placeholder);
-        color: #565f89;
-        pointer-events: none;
-      }
-      .solaria-editor-body ul {
-        margin: 4px 0;
-        padding-left: 20px;
-      }
-      .todo-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 8px;
-        margin: 4px 0;
-        line-height: 1.4;
-      }
-      .todo-check {
-        cursor: pointer;
-        margin-top: 3px;
-        accent-color: #7aa2f7;
-      }
-      .todo-text {
-        flex: 1;
-        outline: none;
-      }
-      .todo-item.completed,
-      .todo-item.completed .todo-text {
-        text-decoration: line-through;
-        color: #565f89 !important;
-      }
-    `;
-    document.head.appendChild(style);
+    const link = document.createElement("link");
+    link.id = "css-rich-editor-shared";
+    link.rel = "stylesheet";
+    link.href = new URL("./rich-editor.css", import.meta.url).href;
+    document.head.appendChild(link);
   }
 
   const container = document.createElement("div");
   container.className = "solaria-editor-container";
 
-  container.innerHTML = `
-    <div class="solaria-editor-toolbar">
-      <button type="button" class="ed-btn" data-cmd="bold" title="Negrito (Ctrl+B)"><b>B</b></button>
-      <button type="button" class="ed-btn" data-cmd="italic" title="Itálico (Ctrl+I)"><i>I</i></button>
-      <button type="button" class="ed-btn" data-cmd="underline" title="Sublinhado (Ctrl+U)"><u>U</u></button>
-      <button type="button" class="ed-btn" data-cmd="strikeThrough" title="Tachado"><s>S</s></button>
-      <div class="ed-divider"></div>
-      <button type="button" class="ed-btn" data-action="list" title="Lista com Marcadores (* + Espaço)">• Lista</button>
-      <button type="button" class="ed-btn" data-action="todo" title="Checklist ([] + Espaço)">☑ Tarefa</button>
-    </div>
-    <div class="solaria-editor-body" contenteditable="true" data-placeholder="${placeholder}"></div>
-  `;
+  const editorBody = document.createElement("div");
+  editorBody.className = "solaria-editor-body";
+  editorBody.setAttribute("contenteditable", "true");
+  editorBody.setAttribute("data-placeholder", placeholder);
+  editorBody.innerHTML = valorInicial || "";
 
-  const body = container.querySelector(".solaria-editor-body");
-  body.innerHTML = valorInicial || "";
+  // Inicializa checkboxes persistidas
+  inicializarCheckboxesExistentes(editorBody);
 
-  // Sincroniza estado de checkboxes carregados do HTML salvo
-  body.querySelectorAll(".todo-check").forEach((cb) => {
-    cb.setAttribute("contenteditable", "false");
-    if (cb.hasAttribute("checked") || cb.closest(".todo-item")?.classList.contains("completed")) {
-      cb.checked = true;
-      cb.closest(".todo-item")?.classList.add("completed");
-    }
-  });
-
-  let debounceTimer;
+  // Debounce para persistência suave
+  let timerSalvar = null;
   function notificarAlteracao() {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
+    clearTimeout(timerSalvar);
+    timerSalvar = setTimeout(() => {
       if (typeof onSalvar === "function") {
-        onSalvar(body.innerHTML);
+        onSalvar(editorBody.innerHTML);
       }
     }, 400);
   }
 
-  function inserirItemTodo() {
-    body.focus();
-    const tempId = "todo_" + Date.now();
-    const todoHtml = `<div class="todo-item" id="${tempId}"><input type="checkbox" class="todo-check" contenteditable="false"><span class="todo-text">&nbsp;</span></div>`;
-    document.execCommand("insertHTML", false, todoHtml);
-
-    const el = body.querySelector(`#${tempId}`);
-    if (el) {
-      el.removeAttribute("id");
-      const span = el.querySelector(".todo-text");
-      if (span) {
-        const sel = window.getSelection();
-        const r = document.createRange();
-        r.selectNodeContents(span);
-        r.collapse(false);
-        sel.removeAllRanges();
-        sel.addRange(r);
-      }
-    }
-    notificarAlteracao();
-  }
-
-  // Botões de Formatação Simples
-  container.querySelectorAll(".ed-btn[data-cmd]").forEach((btn) => {
-    btn.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      document.execCommand(btn.dataset.cmd, false, null);
+  // Montagem da barra de ferramentas
+  const toolbar = criarBarraFerramentas({
+    aoFormatarTexto: (cmd) => {
+      document.execCommand(cmd, false, null);
       notificarAlteracao();
-    });
-  });
-
-  // Botões da Barra
-  container.querySelector('[data-action="list"]').addEventListener("mousedown", (e) => {
-    e.preventDefault();
-    document.execCommand("insertUnorderedList", false, null);
-    notificarAlteracao();
-  });
-
-  container.querySelector('[data-action="todo"]').addEventListener("mousedown", (e) => {
-    e.preventDefault();
-    inserirItemTodo();
-  });
-
-  // Interceptação de Atalhos no Teclado
-  body.addEventListener("keydown", (e) => {
-    // 1. Atalhos Markdown ao pressionar Espaço (* + Espaço ou [] + Espaço)
-    if (e.key === " " || e.code === "Space") {
-      const selection = window.getSelection();
-      if (!selection || !selection.rangeCount) return;
-      const range = selection.getRangeAt(0);
-      const node = range.startContainer;
-
-      if (node.nodeType === Node.TEXT_NODE) {
-        const textBefore = node.textContent.slice(0, range.startOffset);
-        const trimmed = textBefore.trim();
-
-        // Lista (* ou -)
-        if (trimmed === "*" || trimmed === "-") {
-          e.preventDefault();
-          const startIdx = textBefore.lastIndexOf(trimmed);
-          const delRange = document.createRange();
-          delRange.setStart(node, startIdx);
-          delRange.setEnd(node, range.startOffset);
-          selection.removeAllRanges();
-          selection.addRange(delRange);
-          document.execCommand("delete");
-          document.execCommand("insertUnorderedList");
-          notificarAlteracao();
-          return;
-        }
-
-        // Checklist ([] ou [ ])
-        if (trimmed === "[]" || trimmed === "[ ]") {
-          e.preventDefault();
-          const startIdx = textBefore.lastIndexOf(trimmed);
-          const delRange = document.createRange();
-          delRange.setStart(node, startIdx);
-          delRange.setEnd(node, range.startOffset);
-          selection.removeAllRanges();
-          selection.addRange(delRange);
-          document.execCommand("delete");
-          inserirItemTodo();
-          return;
-        }
-      }
-    }
-
-    // 2. Comportamento do Enter dentro de itens de Checklist
-    if (e.key === "Enter") {
-      const selection = window.getSelection();
-      if (!selection || !selection.rangeCount) return;
-      const range = selection.getRangeAt(0);
-      const targetElement = range.startContainer.nodeType === Node.ELEMENT_NODE
-        ? range.startContainer
-        : range.startContainer.parentElement;
-
-      const currentTodo = targetElement?.closest(".todo-item");
-      if (currentTodo) {
-        const textSpan = currentTodo.querySelector(".todo-text");
-        const textoAtual = textSpan ? textSpan.textContent.replace(/\u00a0/g, "").trim() : "";
-
-        // Se deu Enter numa linha de tarefa vazia, sai do modo todo
-        if (!textoAtual) {
-          e.preventDefault();
-          currentTodo.remove();
-          document.execCommand("insertParagraph");
-          notificarAlteracao();
-          return;
-        }
-
-        // Se tinha texto, cria outro item de checklist logo abaixo
-        e.preventDefault();
-        inserirItemTodo();
-      }
+    },
+    aoInserirLista: () => {
+      document.execCommand("insertUnorderedList", false, null);
+      notificarAlteracao();
+    },
+    aoInserirTodo: () => {
+      inserirItemTodoNoCursor(editorBody, notificarAlteracao);
     }
   });
 
-  // Alternar Checkbox com Efeito Riscado e Persistência no HTML
-  function alternarCheck(cb) {
-    const item = cb.closest(".todo-item");
-    if (!item) return;
+  // Conexão de atalhos de teclado (Markdown e Enter)
+  configurarAtalhosTeclado(editorBody, notificarAlteracao);
 
-    if (cb.checked) {
-      item.classList.add("completed");
-      cb.setAttribute("checked", "checked");
-    } else {
-      item.classList.remove("completed");
-      cb.removeAttribute("checked");
-    }
-    notificarAlteracao();
-  }
-
-  body.addEventListener("change", (e) => {
+  // Eventos de clique e alteração nas checkboxes
+  const tratarCliqueCheckbox = (e) => {
     if (e.target.classList.contains("todo-check")) {
-      alternarCheck(e.target);
+      alternarStatusCheck(e.target, notificarAlteracao);
     }
-  });
+  };
 
-  body.addEventListener("click", (e) => {
-    if (e.target.classList.contains("todo-check")) {
-      alternarCheck(e.target);
-    }
-  });
+  editorBody.addEventListener("change", tratarCliqueCheckbox);
+  editorBody.addEventListener("click", tratarCliqueCheckbox);
+  editorBody.addEventListener("input", notificarAlteracao);
 
-  body.addEventListener("input", notificarAlteracao);
+  // Acoplamento final
+  container.appendChild(toolbar);
+  container.appendChild(editorBody);
 
   return {
     elemento: container,
-    obterConteudo: () => body.innerHTML,
+    obterConteudo: () => editorBody.innerHTML,
     definirConteudo: (html) => {
-      body.innerHTML = html || "";
+      editorBody.innerHTML = html || "";
+      inicializarCheckboxesExistentes(editorBody);
     },
-    focar: () => body.focus()
+    focar: () => editorBody.focus()
   };
+}
+
+=== ARQUIVO: \ui\rich-editor\shortcuts.js ===
+import { inserirItemTodoNoCursor } from "./checklist.js";
+
+/**
+ * Gerenciador de Atalhos de Teclado e Markdown
+ * Responsabilidade: Tratar atalhos inline (* + Espaço, [] + Espaço) e quebras de linha com Enter.
+ */
+
+/**
+ * Conecta os ouvintes de atalhos ao corpo do editor
+ * @param {HTMLDivElement} editorBody - Elemento com contenteditable
+ * @param {Function} aoModificar - Callback de salvamento
+ */
+export function configurarAtalhosTeclado(editorBody, aoModificar) {
+  editorBody.addEventListener("keydown", (e) => {
+    // Atalho 1: Markdown ao pressionar Espaço (* ou [])
+    if (e.key === " " || e.code === "Space") {
+      tratarEspacoMarkdown(e, editorBody, aoModificar);
+      return;
+    }
+
+    // Atalho 2: Comportamento da tecla Enter dentro de checklists
+    if (e.key === "Enter") {
+      tratarEnterChecklist(e, editorBody, aoModificar);
+    }
+  });
+}
+
+function tratarEspacoMarkdown(e, editorBody, aoModificar) {
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount) return;
+
+  const range = selection.getRangeAt(0);
+  const node = range.startContainer;
+
+  if (node.nodeType !== Node.TEXT_NODE) return;
+
+  const textoAnterior = node.textContent.slice(0, range.startOffset);
+  const comando = textoAnterior.trim();
+
+  // Lista com Marcadores (* ou -)
+  if (comando === "*" || comando === "-") {
+    e.preventDefault();
+    const indiceInicio = textoAnterior.lastIndexOf(comando);
+    const rangeRemocao = document.createRange();
+    rangeRemocao.setStart(node, indiceInicio);
+    rangeRemocao.setEnd(node, range.startOffset);
+
+    selection.removeAllRanges();
+    selection.addRange(rangeRemocao);
+    document.execCommand("delete");
+    document.execCommand("insertUnorderedList");
+
+    if (typeof aoModificar === "function") aoModificar();
+    return;
+  }
+
+  // Checklist ([] ou [ ])
+  if (comando === "[]" || comando === "[ ]") {
+    e.preventDefault();
+    const indiceInicio = textoAnterior.lastIndexOf(comando);
+    const rangeRemocao = document.createRange();
+    rangeRemocao.setStart(node, indiceInicio);
+    rangeRemocao.setEnd(node, range.startOffset);
+
+    selection.removeAllRanges();
+    selection.addRange(rangeRemocao);
+    document.execCommand("delete");
+
+    inserirItemTodoNoCursor(editorBody, aoModificar);
+  }
+}
+
+function tratarEnterChecklist(e, editorBody, aoModificar) {
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount) return;
+
+  const range = selection.getRangeAt(0);
+  const elementoAlvo = range.startContainer.nodeType === Node.ELEMENT_NODE
+    ? range.startContainer
+    : range.startContainer.parentElement;
+
+  const todoAtual = elementoAlvo?.closest(".todo-item");
+  if (!todoAtual) return;
+
+  const spanTexto = todoAtual.querySelector(".todo-text");
+  const conteudoTexto = spanTexto ? spanTexto.textContent.replace(/\u00a0/g, "").trim() : "";
+
+  // Se deu Enter em item vazio, encerra a lista de tarefas e abre parágrafo comum
+  if (!conteudoTexto) {
+    e.preventDefault();
+    todoAtual.remove();
+    document.execCommand("insertParagraph");
+    if (typeof aoModificar === "function") aoModificar();
+    return;
+  }
+
+  // Se tem texto, quebra criando outro item de checklist logo abaixo
+  e.preventDefault();
+  inserirItemTodoNoCursor(editorBody, aoModificar);
+}
+
+=== ARQUIVO: \ui\rich-editor\toolbar.js ===
+/**
+ * Barra de Ferramentas do Solaria Editor
+ * Responsabilidade: Criar os botões de ação e despachar comandos de formatação.
+ */
+
+const ACOES_FORMATACAO = [
+  { rotulo: "B", tagInterna: "b", cmd: "bold", dica: "Negrito (Ctrl+B)" },
+  { rotulo: "I", tagInterna: "i", cmd: "italic", dica: "Itálico (Ctrl+I)" },
+  { rotulo: "U", tagInterna: "u", cmd: "underline", dica: "Sublinhado (Ctrl+U)" },
+  { rotulo: "S", tagInterna: "s", cmd: "strikeThrough", dica: "Tachado" }
+];
+
+/**
+ * Monta o nó da barra de ferramentas com botões configurados
+ * @param {Object} callbacks - Funções chamadas pelas ações especiais
+ * @param {Function} callbacks.aoFormatarTexto - Executa document.execCommand
+ * @param {Function} callbacks.aoInserirLista - Insere lista com marcadores
+ * @param {Function} callbacks.aoInserirTodo - Insere nó de checklist
+ * @returns {HTMLDivElement} Elemento .solaria-editor-toolbar
+ */
+export function criarBarraFerramentas({ aoFormatarTexto, aoInserirLista, aoInserirTodo }) {
+  const toolbar = document.createElement("div");
+  toolbar.className = "solaria-editor-toolbar";
+
+  // 1. Botões de comando direto (B, I, U, S)
+  ACOES_FORMATACAO.forEach(({ rotulo, tagInterna, cmd, dica }) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ed-btn";
+    btn.title = dica;
+
+    const rotuloEl = document.createElement(tagInterna);
+    rotuloEl.textContent = rotulo;
+    btn.appendChild(rotuloEl);
+
+    btn.addEventListener("mousedown", (e) => {
+      e.preventDefault(); // Impede perda de seleção no editor
+      if (typeof aoFormatarTexto === "function") aoFormatarTexto(cmd);
+    });
+
+    toolbar.appendChild(btn);
+  });
+
+  // Divisor visual
+  const divisor = document.createElement("div");
+  divisor.className = "ed-divider";
+  toolbar.appendChild(divisor);
+
+  // 2. Botão Lista com Marcadores
+  const btnLista = document.createElement("button");
+  btnLista.type = "button";
+  btnLista.className = "ed-btn";
+  btnLista.textContent = "• Lista";
+  btnLista.title = "Lista com Marcadores (* + Espaço)";
+  btnLista.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    if (typeof aoInserirLista === "function") aoInserirLista();
+  });
+  toolbar.appendChild(btnLista);
+
+  // 3. Botão Checklist
+  const btnTodo = document.createElement("button");
+  btnTodo.type = "button";
+  btnTodo.className = "ed-btn";
+  btnTodo.textContent = "☑ Tarefa";
+  btnTodo.title = "Checklist ([] + Espaço)";
+  btnTodo.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    if (typeof aoInserirTodo === "function") aoInserirTodo();
+  });
+  toolbar.appendChild(btnTodo);
+
+  return toolbar;
 }
 

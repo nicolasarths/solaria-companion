@@ -1,4 +1,4 @@
-import { criarRichEditor } from "../../ui/rich-editor.js";
+import { criarRichEditor } from "../../ui/rich-editor/rich-editor.js";
 
 function obterIconePermissaoNota(nota) {
   if (nota.visivelPlayer === false) return "🔒";

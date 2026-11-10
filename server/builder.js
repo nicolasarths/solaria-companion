@@ -1,20 +1,14 @@
 const fs = require("fs");
 const path = require("path");
 
-/**
- * Escaneia a pasta /painel e compila o modulos.json na raiz
- * @param {string} rootDir - Diretório raiz do projeto
- */
+let isGenerating = false;
+
 function sincronizarModulosJson(rootDir = path.resolve(__dirname, "..")) {
   const painelDir = path.join(rootDir, "painel");
   const modulosPath = path.join(rootDir, "modulos.json");
   const estrutura = {};
-  const resumo = {};
 
-  if (!fs.existsSync(painelDir)) {
-    console.warn("⚠️ [Builder] Pasta /painel não encontrada para gerar modulos.json.");
-    return;
-  }
+  if (!fs.existsSync(painelDir)) return;
 
   const itens = fs.readdirSync(painelDir, { withFileTypes: true });
 
@@ -28,7 +22,6 @@ function sincronizarModulosJson(rootDir = path.resolve(__dirname, "..")) {
       registros: []
     };
 
-    // Lê todos os arquivos .json presentes na pasta do módulo (ex: painel/fichas/guarda.json)
     arquivos.filter(f => f.endsWith(".json")).forEach(arq => {
       try {
         const conteudo = JSON.parse(fs.readFileSync(path.join(caminhoPasta, arq), "utf-8"));
@@ -41,46 +34,42 @@ function sincronizarModulosJson(rootDir = path.resolve(__dirname, "..")) {
           conteudo.id = conteudo.id || `${nomePasta}-${arq.replace(".json", "")}`;
           estrutura[nomePasta].registros.push(conteudo);
         }
-      } catch (err) {
-        console.error(`❌ [Builder] Erro ao ler JSON ${nomePasta}/${arq}:`, err.message);
-      }
+      } catch (_) {}
     });
-
-    resumo[nomePasta] = estrutura[nomePasta].registros.length;
   });
 
-  fs.writeFileSync(modulosPath, JSON.stringify(estrutura, null, 2), "utf-8");
-
-  const detalhes = Object.entries(resumo).map(([k, v]) => `${k}: ${v}`).join(", ");
-  console.log(`📁 [Builder] modulos.json sincronizado com sucesso! (${detalhes})`);
+  fs.writeFileSync(modulosPath, JSON.stringify(estrutura, null, 2), { encoding: "utf-8", flag: "w" });
 }
 
-/**
- * Gera o snapshot consolidado de código do projeto
- */
 function gerarProjetoCompleto(rootDir = path.resolve(__dirname, "..")) {
+  if (isGenerating) return;
+  isGenerating = true;
+
   try {
     const extensoesValidas = [".js", ".html", ".css", ".json"];
+    const destino = path.join(rootDir, "projeto_completo.txt");
     let output = "";
 
     function varrerDiretorio(dir) {
       const itens = fs.readdirSync(dir, { withFileTypes: true });
       for (const item of itens) {
-        const nome = item.name;
+        const nome = item.name.toLowerCase();
+
+        // Ignora estritamente pastas pesadas e qualquer variante do arquivo de snapshot
         if (
           nome === ".git" || 
           nome === "node_modules" || 
-          nome === "projeto_completo.txt" || 
+          nome.startsWith("projeto_completo") || 
           nome === "package-lock.json"
         ) {
           continue;
         }
 
-        const fullPath = path.join(dir, nome);
+        const fullPath = path.join(dir, item.name);
         if (item.isDirectory()) {
           varrerDiretorio(fullPath);
         } else if (item.isFile()) {
-          const ext = path.extname(nome).toLowerCase();
+          const ext = path.extname(item.name).toLowerCase();
           if (extensoesValidas.includes(ext)) {
             const relPath = "\\" + path.relative(rootDir, fullPath);
             const content = fs.readFileSync(fullPath, "utf-8");
@@ -91,13 +80,17 @@ function gerarProjetoCompleto(rootDir = path.resolve(__dirname, "..")) {
     }
 
     varrerDiretorio(rootDir);
-    fs.writeFileSync(path.join(rootDir, "projeto_completo.txt"), output, "utf-8");
+
+    // Limpa o arquivo primeiro e grava com flag 'w' explícita
+    fs.writeFileSync(destino, output, { encoding: "utf-8", flag: "w" });
+    console.log(`📝 [Builder] projeto_completo.txt regerado do ZERO com sucesso.`);
   } catch (err) {
-    console.error("Erro ao gerar projeto_completo.txt:", err.message);
+    console.error("❌ [Builder] Erro ao gerar projeto_completo.txt:", err.message);
+  } finally {
+    isGenerating = false;
   }
 }
 
-// Permite execução direta no terminal: node server/builder.js
 if (require.main === module) {
   const root = path.resolve(__dirname, "..");
   sincronizarModulosJson(root);

@@ -1,16 +1,6 @@
 import { criarRichEditor } from "../../ui/rich-editor/rich-editor.js";
-
-function obterIconePermissaoNota(nota) {
-  if (nota.visivelPlayer === false) return "🔒";
-  if (!nota.editavelPlayer) return "👁️";
-  return "✍️";
-}
-
-function obterTituloPermissaoNota(nota) {
-  if (nota.visivelPlayer === false) return "Status: Oculto para jogadores (Clique para liberar Leitura)";
-  if (!nota.editavelPlayer) return "Status: Jogador pode Ver apenas (Clique para liberar Edição)";
-  return "Status: Jogador pode Ver e Editar (Clique para Ocultar)";
-}
+import { criarBotaoVisibilidade } from "../../ui/visibility-btn.js";
+import { criarBotaoConfirmarExclusao } from "../../ui/confirm-delete-btn.js";
 
 export function criarCardNota({
   nota,
@@ -38,14 +28,10 @@ export function criarCardNota({
       <button type="button" class="btn-collapse-arrow" title="Colapsar / Expandir">▼</button>
       <input type="text" class="note-title-input" value="${nota.titulo || "Sem Título"}" placeholder="Título da anotação..." ${!isEditavel ? "readonly" : ""}>
       
-      ${isGM ? `
-        <button type="button" class="btn-toggle-permissao-nota" title="${obterTituloPermissaoNota(nota)}" style="background:transparent; border:none; cursor:pointer; font-size:12px; margin:0 4px; padding:2px;">
-          ${obterIconePermissaoNota(nota)}
-        </button>
-      ` : (nota.editavelPlayer ? `<span title="Você pode editar esta anotação" style="font-size:11px; margin:0 4px;">✍️</span>` : "")}
+      <div class="note-actions-slot" style="display:flex; align-items:center; gap:4px;"></div>
       
       <span class="note-save-badge">${isEditavel ? "● Guardado" : ""}</span>
-      ${isGM ? `<button type="button" class="btn-delete-note" title="Clique duas vezes para excluir">✕</button>` : ""}
+      <div class="delete-btn-slot"></div>
     </div>
     <div class="note-card-body">
       <div class="note-editor-slot"></div>
@@ -65,12 +51,37 @@ export function criarCardNota({
   const header = card.querySelector(".note-card-header");
   const titleInput = card.querySelector(".note-title-input");
   const saveBadge = card.querySelector(".note-save-badge");
-  const deleteBtn = card.querySelector(".btn-delete-note");
   const editorSlot = card.querySelector(".note-editor-slot");
   const chipsContainer = card.querySelector(".note-chips-container");
   const triggerBtn = card.querySelector(".btn-add-chip-trigger");
   const popupMenu = card.querySelector(".attach-popup-menu");
-  const btnPermissao = card.querySelector(".btn-toggle-permissao-nota");
+  const actionsSlot = card.querySelector(".note-actions-slot");
+  const deleteSlot = card.querySelector(".delete-btn-slot");
+
+  // Injeta o botão de visibilidade modularizado (caso seja GM) ou ícone informativo (caso seja Jogador com permissão)
+  if (isGM) {
+    const btnVisibilidade = criarBotaoVisibilidade(nota, async (novasPermissoes) => {
+      if (typeof onVisibilidadeChange === "function") {
+        onVisibilidadeChange(novasPermissoes);
+      }
+    });
+    actionsSlot.appendChild(btnVisibilidade);
+  } else if (nota.editavelPlayer) {
+    const spanInfo = document.createElement("span");
+    spanInfo.title = "Você pode editar esta anotação";
+    spanInfo.style.fontSize = "11px";
+    spanInfo.style.margin = "0 4px";
+    spanInfo.textContent = "✍️";
+    actionsSlot.appendChild(spanInfo);
+  }
+
+  // Injeta o botão de exclusão padronizado com confirmação (caso seja GM)
+  if (isGM) {
+    const btnExcluir = criarBotaoConfirmarExclusao(() => {
+      if (typeof onExcluir === "function") onExcluir();
+    });
+    deleteSlot.appendChild(btnExcluir);
+  }
 
   const editor = criarRichEditor({
     placeholder: isEditavel ? "Registe pistas, ideias, regras ou tarefas..." : "Anotação em modo leitura...",
@@ -180,53 +191,14 @@ export function criarCardNota({
   header.addEventListener("click", (e) => {
     if (
       e.target === titleInput || 
-      e.target === deleteBtn || 
-      deleteBtn?.contains(e.target) || 
-      e.target.closest(".btn-toggle-permissao-nota")
+      e.target.closest("button") || 
+      e.target.closest(".note-actions-slot") ||
+      e.target.closest(".delete-btn-slot")
     ) return;
     
     const isCollapsed = card.classList.toggle("is-collapsed");
     if (typeof onToggle === "function") onToggle(!isCollapsed);
   });
-
-  if (isGM) {
-    btnPermissao?.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      let novasPermissoes = {};
-      if (nota.visivelPlayer === false) {
-        novasPermissoes = { visivelPlayer: true, editavelPlayer: false };
-      } else if (!nota.editavelPlayer) {
-        novasPermissoes = { visivelPlayer: true, editavelPlayer: true };
-      } else {
-        novasPermissoes = { visivelPlayer: false, editavelPlayer: false };
-      }
-
-      if (typeof onVisibilidadeChange === "function") {
-        onVisibilidadeChange(novasPermissoes);
-      }
-    });
-
-    let resetDeleteTimer = null;
-    deleteBtn?.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (deleteBtn.classList.contains("confirm-delete")) {
-        clearTimeout(resetDeleteTimer);
-        deleteBtn.classList.remove("confirm-delete");
-        deleteBtn.textContent = "✕";
-        if (typeof onExcluir === "function") onExcluir();
-        return;
-      }
-      deleteBtn.classList.add("confirm-delete");
-      deleteBtn.textContent = "Excluir?";
-      resetDeleteTimer = setTimeout(() => {
-        deleteBtn.classList.remove("confirm-delete");
-        deleteBtn.textContent = "✕";
-      }, 3000);
-    });
-  }
 
   if (isEditavel) {
     let debounceTimer;

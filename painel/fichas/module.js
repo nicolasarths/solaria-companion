@@ -1,8 +1,8 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { vincularCalculosCard } from "./stats.js";
+import { vincularCalculosCard } from "./components/stats.js";
 import { SheetStore } from "./store.js";
-import { criarElementoCard } from "./card.js";
-import { renderFormulario } from "./form.js";
+import { criarElementoCard } from "./components/card.js";
+import { renderFormulario } from "./components/form.js";
 import { iniciarOuvintesOwlbear } from "./obr-sync.js";
 import { atualizarHudToken, removerHudToken, sincronizarTodosHuds } from "../../hud/token-hud.js";
 import { SolariaSync } from "../../core/sync.js";

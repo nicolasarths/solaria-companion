@@ -1,6 +1,6 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { calcularNovoStat } from "./calc.js";
-import { normalizarStats } from "./stats.js";
+import { calcularNovoStat } from "./components/calc.js";
+import { normalizarStats } from "./components/stats.js";
 import { atualizarHudToken } from "../../hud/token-hud.js";
 import { SolariaSync } from "../../core/sync.js";
 

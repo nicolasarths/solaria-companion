@@ -1,5 +1,5 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { normalizarStats } from "../painel/fichas/stats.js";
+import { normalizarStats } from "../painel/fichas/components/stats.js";
 import {
   ORBITA_STATS,
   BADGE_CONFIG,

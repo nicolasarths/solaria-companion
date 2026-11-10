@@ -1207,6 +1207,53 @@ export function resolverRota(path) {
   return `${BASE_URL}${limpo}`;
 }
 
+=== ARQUIVO: \core\constants.js ===
+/**
+ * Constantes Centrais e Strings Mágicas - Solaria Companion
+ */
+
+export const STORAGE_KEYS = {
+  FICHAS_CUSTOM: "solaria_fichas_custom",
+  NOTAS_MULTIPLAS: "solaria_notas_multiplas",
+  COMBATE_ESTADO: "solaria_combate_estado",
+  CLOUD_BIN_ID: "solaria_cloud_bin_id",
+  CLOUD_MASTER_KEY: "solaria_cloud_master_key",
+  PAINEL_DIMENSOES: "solaria_painel_dimensoes",
+  ABA_ATIVA: "solaria_aba_ativa",
+  ACAO_PENDENTE: "solaria_acao_pendente",
+  EXIBIR_STATS: "solaria_exibir_stats",
+  AUTO_ABRIR: "solaria_auto_abrir",
+  ANEXOS: "solaria_anexos",
+  NOTAS_ESTADOS_ABERTURA: "solaria_notas_estados_abertura"
+};
+
+export const POPOVER_IDS = {
+  PAINEL: "solaria-painel-inferior-direito",
+  COMBATE: "solaria-painel-combate",
+  QUICK_STAT: "solaria-quick-stat-editor"
+};
+
+export const METADATA_KEYS = {
+  SHEET_ID: "solaria/sheetId",
+  TOKEN_HUD: "solaria/tokenHudItem",
+  BTN_FICHA: "solaria/btnAbrirFicha",
+  SYNC_COMBATE: "solaria/sync_combate",
+  SYNC_FICHAS: "solaria/sync_fichas",
+  SYNC_NOTAS: "solaria/sync_notas"
+};
+
+export const BROADCAST_CHANNELS = {
+  COMBATE_SYNC: "solaria/combate-sync",
+  COMBATE_FECHADO: "solaria/combate-fechado",
+  FICHA_SYNC: "solaria/ficha-sync",
+  FICHA_EXCLUIDA: "solaria/ficha-excluida",
+  FICHA_STAT_ATUALIZADO: "solaria/ficha-stat-atualizado",
+  NOTA_SYNC: "solaria/nota-sync",
+  NOTA_EXCLUIDA: "solaria/nota-excluida",
+  CRIAR_FICHA_TOKEN: "solaria/criar-ficha-token",
+  FOCAR_FICHA_TOKEN: "solaria/focar-ficha-token"
+};
+
 === ARQUIVO: \core\map-events.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { WindowManager } from "./windows.js";
@@ -1687,7 +1734,7 @@ export function criarComandosRetanguloArredondado(w, h, r) {
 
 === ARQUIVO: \hud\token-hud.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { normalizarStats } from "../painel/fichas/stats.js";
+import { normalizarStats } from "../painel/fichas/components/stats.js";
 import {
   ORBITA_STATS,
   BADGE_CONFIG,
@@ -2144,7 +2191,7 @@ input:checked + .slider:before {
 
   <button type="button" id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>
 
-  <script type="module" src="./main.js?v=2026.11.10-250"></script>
+  <script type="module" src="./main.js?v=2026.11.10-313"></script>
 </body>
 </html>
 
@@ -2221,7 +2268,7 @@ OBR.onReady(async () => {
 {
   "manifest_version": 1,
   "name": "Solaria Companion",
-  "version": "2026.11.10-250",
+  "version": "2026.11.10-313",
   "description": "Extensão para Solaria no Owlbear Rodeo",
   "author": "Nicolas Arths",
   "icon": "/solaria-companion/favicon.svg",
@@ -2513,18 +2560,8 @@ export function render(container, Estado) {
 
 === ARQUIVO: \painel\anotacoes\note-card.js ===
 import { criarRichEditor } from "../../ui/rich-editor/rich-editor.js";
-
-function obterIconePermissaoNota(nota) {
-  if (nota.visivelPlayer === false) return "🔒";
-  if (!nota.editavelPlayer) return "👁️";
-  return "✍️";
-}
-
-function obterTituloPermissaoNota(nota) {
-  if (nota.visivelPlayer === false) return "Status: Oculto para jogadores (Clique para liberar Leitura)";
-  if (!nota.editavelPlayer) return "Status: Jogador pode Ver apenas (Clique para liberar Edição)";
-  return "Status: Jogador pode Ver e Editar (Clique para Ocultar)";
-}
+import { criarBotaoVisibilidade } from "../../ui/visibility-btn.js";
+import { criarBotaoConfirmarExclusao } from "../../ui/confirm-delete-btn.js";
 
 export function criarCardNota({
   nota,
@@ -2552,14 +2589,10 @@ export function criarCardNota({
       <button type="button" class="btn-collapse-arrow" title="Colapsar / Expandir">▼</button>
       <input type="text" class="note-title-input" value="${nota.titulo || "Sem Título"}" placeholder="Título da anotação..." ${!isEditavel ? "readonly" : ""}>
       
-      ${isGM ? `
-        <button type="button" class="btn-toggle-permissao-nota" title="${obterTituloPermissaoNota(nota)}" style="background:transparent; border:none; cursor:pointer; font-size:12px; margin:0 4px; padding:2px;">
-          ${obterIconePermissaoNota(nota)}
-        </button>
-      ` : (nota.editavelPlayer ? `<span title="Você pode editar esta anotação" style="font-size:11px; margin:0 4px;">✍️</span>` : "")}
+      <div class="note-actions-slot" style="display:flex; align-items:center; gap:4px;"></div>
       
       <span class="note-save-badge">${isEditavel ? "● Guardado" : ""}</span>
-      ${isGM ? `<button type="button" class="btn-delete-note" title="Clique duas vezes para excluir">✕</button>` : ""}
+      <div class="delete-btn-slot"></div>
     </div>
     <div class="note-card-body">
       <div class="note-editor-slot"></div>
@@ -2579,12 +2612,37 @@ export function criarCardNota({
   const header = card.querySelector(".note-card-header");
   const titleInput = card.querySelector(".note-title-input");
   const saveBadge = card.querySelector(".note-save-badge");
-  const deleteBtn = card.querySelector(".btn-delete-note");
   const editorSlot = card.querySelector(".note-editor-slot");
   const chipsContainer = card.querySelector(".note-chips-container");
   const triggerBtn = card.querySelector(".btn-add-chip-trigger");
   const popupMenu = card.querySelector(".attach-popup-menu");
-  const btnPermissao = card.querySelector(".btn-toggle-permissao-nota");
+  const actionsSlot = card.querySelector(".note-actions-slot");
+  const deleteSlot = card.querySelector(".delete-btn-slot");
+
+  // Injeta o botão de visibilidade modularizado (caso seja GM) ou ícone informativo (caso seja Jogador com permissão)
+  if (isGM) {
+    const btnVisibilidade = criarBotaoVisibilidade(nota, async (novasPermissoes) => {
+      if (typeof onVisibilidadeChange === "function") {
+        onVisibilidadeChange(novasPermissoes);
+      }
+    });
+    actionsSlot.appendChild(btnVisibilidade);
+  } else if (nota.editavelPlayer) {
+    const spanInfo = document.createElement("span");
+    spanInfo.title = "Você pode editar esta anotação";
+    spanInfo.style.fontSize = "11px";
+    spanInfo.style.margin = "0 4px";
+    spanInfo.textContent = "✍️";
+    actionsSlot.appendChild(spanInfo);
+  }
+
+  // Injeta o botão de exclusão padronizado com confirmação (caso seja GM)
+  if (isGM) {
+    const btnExcluir = criarBotaoConfirmarExclusao(() => {
+      if (typeof onExcluir === "function") onExcluir();
+    });
+    deleteSlot.appendChild(btnExcluir);
+  }
 
   const editor = criarRichEditor({
     placeholder: isEditavel ? "Registe pistas, ideias, regras ou tarefas..." : "Anotação em modo leitura...",
@@ -2694,53 +2752,14 @@ export function criarCardNota({
   header.addEventListener("click", (e) => {
     if (
       e.target === titleInput || 
-      e.target === deleteBtn || 
-      deleteBtn?.contains(e.target) || 
-      e.target.closest(".btn-toggle-permissao-nota")
+      e.target.closest("button") || 
+      e.target.closest(".note-actions-slot") ||
+      e.target.closest(".delete-btn-slot")
     ) return;
     
     const isCollapsed = card.classList.toggle("is-collapsed");
     if (typeof onToggle === "function") onToggle(!isCollapsed);
   });
-
-  if (isGM) {
-    btnPermissao?.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      let novasPermissoes = {};
-      if (nota.visivelPlayer === false) {
-        novasPermissoes = { visivelPlayer: true, editavelPlayer: false };
-      } else if (!nota.editavelPlayer) {
-        novasPermissoes = { visivelPlayer: true, editavelPlayer: true };
-      } else {
-        novasPermissoes = { visivelPlayer: false, editavelPlayer: false };
-      }
-
-      if (typeof onVisibilidadeChange === "function") {
-        onVisibilidadeChange(novasPermissoes);
-      }
-    });
-
-    let resetDeleteTimer = null;
-    deleteBtn?.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (deleteBtn.classList.contains("confirm-delete")) {
-        clearTimeout(resetDeleteTimer);
-        deleteBtn.classList.remove("confirm-delete");
-        deleteBtn.textContent = "✕";
-        if (typeof onExcluir === "function") onExcluir();
-        return;
-      }
-      deleteBtn.classList.add("confirm-delete");
-      deleteBtn.textContent = "Excluir?";
-      resetDeleteTimer = setTimeout(() => {
-        deleteBtn.classList.remove("confirm-delete");
-        deleteBtn.textContent = "✕";
-      }, 3000);
-    });
-  }
 
   if (isEditavel) {
     let debounceTimer;
@@ -3480,7 +3499,7 @@ export function configurarCargos(realRole) {
   }
 }
 
-=== ARQUIVO: \painel\fichas\calc.js ===
+=== ARQUIVO: \painel\fichas\components\calc.js ===
 /**
  * Avalia expressões matemáticas simples sem usar eval inseguro.
  * Suporta +, -, *, / e parênteses.
@@ -3535,23 +3554,14 @@ export function calcularNovoStat(valorAtual, inputDigitado) {
   return valorDireto !== null ? Math.round(valorDireto) : atual;
 }
 
-=== ARQUIVO: \painel\fichas\card.js ===
+=== ARQUIVO: \painel\fichas\components\card.js ===
 import { renderStatsCard } from "./stats.js";
 import { renderHistoricoCard } from "./historico.js";
 import { renderHabilidadesCard } from "./habilidades.js";
 import { renderInventarioCard } from "./inventario.js";
-import { selecionarTokenNoGrid, desvincularToken, obterDadosTokenSelecionado, vincularTokenAoId } from "./obr-sync.js";
-import { atualizarHudToken, removerHudToken } from "../../hud/token-hud.js";
-
-export function UI_BotaoPermissao(f, classExtra = "btn-icon-action") {
-  if (f.visivelPlayer === false) {
-    return `<button type="button" class="${classExtra} btn-toggle-permissao" title="Status: Oculto para jogadores (Clique para liberar Leitura)">🔒</button>`;
-  }
-  if (!f.editavelPlayer) {
-    return `<button type="button" class="${classExtra} btn-toggle-permissao" title="Status: Jogador pode Ver apenas (Clique para liberar Edição)">👁️</button>`;
-  }
-  return `<button type="button" class="${classExtra} btn-toggle-permissao" title="Status: Jogador pode Ver e Editar (Clique para Ocultar)">✍️</button>`;
-}
+import { selecionarTokenNoGrid, desvincularToken, obterDadosTokenSelecionado, vincularTokenAoId } from "../obr-sync.js";
+import { atualizarHudToken, removerHudToken } from "../../../hud/token-hud.js";
+import { criarBotaoVisibilidade } from "../../../ui/visibility-btn.js";
 
 export function criarElementoCard(f, role, acoes) {
   const isGM = role === "GM";
@@ -3577,7 +3587,7 @@ export function criarElementoCard(f, role, acoes) {
       </div>
       <div class="sheet-actions">
         <span class="sheet-tag-badge">${f.tag || "NPC"}</span>
-        ${isGM ? UI_BotaoPermissao(f) : ""}
+        <div class="visibility-btn-slot"></div>
         ${isEditavel ? `<button type="button" class="btn-icon-action btn-edit" title="Editar Ficha">✏️</button>` : ""}
       </div>
     </div>
@@ -3619,6 +3629,17 @@ export function criarElementoCard(f, role, acoes) {
     });
   }
 
+  // Insere o botão de visibilidade modularizado caso seja GM
+  const visibilitySlot = card.querySelector(".visibility-btn-slot");
+  if (isGM && visibilitySlot) {
+    const btnVisibilidade = criarBotaoVisibilidade(f, async (novasPermissoes) => {
+      Object.assign(f, novasPermissoes);
+      acoes.onAtualizar(f);
+      await atualizarHudToken(f);
+    }, "btn-icon-action");
+    visibilitySlot.appendChild(btnVisibilidade);
+  }
+
   card.querySelector(".sheet-card-header").addEventListener("click", (e) => {
     if (
       e.target.closest(".btn-edit") ||
@@ -3638,26 +3659,6 @@ export function criarElementoCard(f, role, acoes) {
   }
 
   if (isGM) {
-    // Ciclo de permissões: 🔒 Oculto ➔ 👁️ Ver ➔ ✍️ Ver e Editar ➔ 🔒 Oculto
-    card.querySelector(".btn-toggle-permissao")?.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (f.visivelPlayer === false) {
-        f.visivelPlayer = true;
-        f.editavelPlayer = false;
-      } else if (!f.editavelPlayer) {
-        f.visivelPlayer = true;
-        f.editavelPlayer = true;
-      } else {
-        f.visivelPlayer = false;
-        f.editavelPlayer = false;
-      }
-
-      acoes.onAtualizar(f);
-      await atualizarHudToken(f);
-    });
-
     card.querySelector(".btn-token-unlink")?.addEventListener("click", async () => {
       const idParaRemover = f.tokenId;
       f.tokenId = null;
@@ -3688,12 +3689,12 @@ export function criarElementoCard(f, role, acoes) {
   return card;
 }
 
-=== ARQUIVO: \painel\fichas\form.js ===
+=== ARQUIVO: \painel\fichas\components\form.js ===
 import { renderStatsForm, getStatsFormData } from "./stats.js";
 import { renderHistoricoForm, getHistoricoFormData } from "./historico.js";
 import { renderHabilidadesForm, getHabilidadesFormData } from "./habilidades.js";
 import { renderInventarioForm, getInventarioFormData } from "./inventario.js";
-import { vincularTokenAoId, desvincularToken } from "./obr-sync.js";
+import { vincularTokenAoId, desvincularToken } from "../obr-sync.js";
 
 export function renderFormulario(container, ficha, onVoltar, onSalvar, onExcluir, role = "GM") {
   const isGM = role === "GM";
@@ -3792,17 +3793,7 @@ export function renderFormulario(container, ficha, onVoltar, onSalvar, onExcluir
   });
 }
 
-=== ARQUIVO: \painel\fichas\guarda.json ===
-{
-  "id": "guarda-1",
-  "nome": "Guarda de Solaria",
-  "tag": "NPC",
-  "visivelPlayer": true,
-  "desc": "HP: 25 | Defesa: 14 | Lança Solar (1d8+2).",
-  "segredoGM": "Subornável por 15 moedas de ouro."
-}
-
-=== ARQUIVO: \painel\fichas\habilidades.js ===
+=== ARQUIVO: \painel\fichas\components\habilidades.js ===
 export function renderHabilidadesCard(habilidades = []) {
   if (!habilidades.length) return "";
 
@@ -3893,7 +3884,9 @@ export function getHabilidadesFormData(container) {
   return resultado;
 }
 
-=== ARQUIVO: \painel\fichas\historico.js ===
+=== ARQUIVO: \painel\fichas\components\historico.js ===
+import { criarRichEditor } from "../../../ui/rich-editor/rich-editor.js";
+
 export function renderHistoricoCard(historico) {
   if (!historico || historico.trim() === "" || historico === "<br>") return "";
   return `
@@ -3906,28 +3899,37 @@ export function renderHistoricoCard(historico) {
 
 export function renderHistoricoForm(container, historico = "") {
   const wrapper = document.createElement("div");
+  wrapper.className = "historico-form-wrapper";
   wrapper.innerHTML = `
     <div class="section-label" style="margin-top:10px;">Histórico</div>
-    <div style="display:flex; gap:4px; margin-bottom:4px;">
-      <button type="button" class="tool-btn" data-cmd="bold"><b>B</b></button>
-      <button type="button" class="tool-btn" data-cmd="italic"><i>I</i></button>
-      <button type="button" class="tool-btn" data-cmd="insertUnorderedList">• Lista</button>
-    </div>
-    <div id="f-historico" class="editor-history" contenteditable="true">${historico}</div>
+    <div id="editor-slot-historico"></div>
   `;
 
-  wrapper.querySelectorAll(".tool-btn").forEach(btn => {
-    btn.addEventListener("click", () => document.execCommand(btn.dataset.cmd, false, null));
+  const editorSlot = wrapper.querySelector("#editor-slot-historico");
+
+  // Instancia o editor rico universal com suporte a checklists, atalhos markdown e barra completa
+  const editor = criarRichEditor({
+    placeholder: "Descreva o histórico, anotações ou progresso da entidade...",
+    valorInicial: historico,
+    onSalvar: () => {} // Salvamento tratado no botão de guardar geral da ficha
   });
 
+  editorSlot.appendChild(editor.elemento);
   container.appendChild(wrapper);
+
+  // Armazena referência para coleta de dados no formulário
+  wrapper._richEditorInstance = editor;
 }
 
 export function getHistoricoFormData(container) {
+  const wrapper = container.querySelector(".historico-form-wrapper");
+  if (wrapper && wrapper._richEditorInstance) {
+    return wrapper._richEditorInstance.obterConteudo();
+  }
   return container.querySelector("#f-historico")?.innerHTML || "";
 }
 
-=== ARQUIVO: \painel\fichas\inventario.js ===
+=== ARQUIVO: \painel\fichas\components\inventario.js ===
 export function renderInventarioCard(inventario = []) {
   if (!inventario.length) return "";
 
@@ -3999,12 +4001,181 @@ export function getInventarioFormData(container) {
   return resultado;
 }
 
+=== ARQUIVO: \painel\fichas\components\stats.js ===
+import { calcularNovoStat } from "./calc.js";
+
+const STATS_CHAVES = [
+  { id: "pv", label: "PV", cor: "#f7768e" },
+  { id: "pm", label: "PM", cor: "#7aa2f7" },
+  { id: "rm", label: "RM", cor: "#e0af68" },
+  { id: "cd", label: "CD", cor: "#bb9af7" },
+  { id: "atk", label: "ATK", cor: "#73daca" }
+];
+
+/**
+ * Normaliza o objeto de stats garantindo que cada atributo tenha { atual, max }.
+ * Mantém retrocompatibilidade se existirem fichas antigas salvas com números simples.
+ */
+export function normalizarStats(statsRaw = {}) {
+  const norm = {};
+  STATS_CHAVES.forEach(({ id }) => {
+    const s = statsRaw[id];
+    if (typeof s === "object" && s !== null) {
+      norm[id] = {
+        atual: parseFloat(s.atual ?? s.max ?? 0),
+        max: parseFloat(s.max ?? s.atual ?? 0)
+      };
+    } else {
+      const val = parseFloat(s ?? 0) || 0;
+      norm[id] = { atual: val, max: val };
+    }
+  });
+  return norm;
+}
+
+/**
+ * Renderiza a grade de stats no card principal da ficha com inputs inline de cálculo rápido.
+ */
+export function renderStatsCard(statsRaw = {}, fichaId = "") {
+  const stats = normalizarStats(statsRaw);
+
+  let html = `<div class="stats-badge-grid" data-ficha-id="${fichaId}">`;
+
+  STATS_CHAVES.forEach(({ id, label, cor }) => {
+    const item = stats[id];
+    html += `
+      <div class="stat-pill" style="border-top: 2px solid ${cor};">
+        <span class="stat-pill-label">${label}</span>
+        <div class="stat-values-row">
+          <input 
+            type="text" 
+            class="stat-calc-input stat-input-cur" 
+            data-ficha-id="${fichaId}" 
+            data-stat="${id}" 
+            data-sub="atual" 
+            title="Valor Atual (digite -10, +5, /2, etc)" 
+            value="${item.atual}"
+          />
+          <span class="stat-slash">/</span>
+          <input 
+            type="text" 
+            class="stat-calc-input stat-input-max" 
+            data-ficha-id="${fichaId}" 
+            data-stat="${id}" 
+            data-sub="max" 
+            title="Valor Máximo" 
+            value="${item.max}"
+          />
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+/**
+ * Liga os ouvintes de cálculo matemático dinâmico nos inputs dos cards.
+ */
+export function vincularCalculosCard(container, aoAtualizarFicha) {
+  container.querySelectorAll(".stat-calc-input").forEach(input => {
+    // Impede que o clique no input expanda/feche o card da ficha
+    input.addEventListener("click", (e) => e.stopPropagation());
+
+    const aplicarOperacao = () => {
+      const fichaId = input.dataset.fichaId;
+      const statId = input.dataset.stat;
+      const sub = input.dataset.sub; // "atual" ou "max"
+      const valorDigitado = input.value.trim();
+
+      aoAtualizarFicha(fichaId, (ficha) => {
+        ficha.stats = normalizarStats(ficha.stats);
+        const valorAntigo = ficha.stats[statId][sub];
+        const novoValor = calcularNovoStat(valorAntigo, valorDigitado);
+
+        ficha.stats[statId][sub] = novoValor;
+        input.value = novoValor;
+      });
+    };
+
+    input.addEventListener("change", aplicarOperacao);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        input.blur();
+      }
+    });
+  });
+}
+
+/**
+ * Renderiza o formulário completo de edição de stats (com Atual e Max).
+ */
+export function renderStatsForm(statsRaw = {}) {
+  const stats = normalizarStats(statsRaw);
+
+  let html = `
+    <div class="section-label" style="margin-top:10px;">Atributos / Stats (Atual / Máx)</div>
+    <div class="stats-badge-grid">
+  `;
+
+  STATS_CHAVES.forEach(({ id, label, cor }) => {
+    const item = stats[id];
+    html += `
+      <div class="stat-pill" style="border-top: 2px solid ${cor};">
+        <span class="stat-pill-label">${label}</span>
+        <div class="stat-values-row">
+          <input type="text" id="form-st-${id}-cur" class="stat-calc-input" placeholder="Atual" value="${item.atual}">
+          <span class="stat-slash">/</span>
+          <input type="text" id="form-st-${id}-max" class="stat-calc-input" placeholder="Máx" value="${item.max}">
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  return html;
+}
+
+/**
+ * Coleta os dados preenchidos no formulário aplicando o cálculo caso alguém digite fórmulas.
+ */
+export function getStatsFormData(container, statsAntigos = {}) {
+  const antigos = normalizarStats(statsAntigos);
+  const resultado = {};
+
+  STATS_CHAVES.forEach(({ id }) => {
+    const inputCur = container.querySelector(`#form-st-${id}-cur`)?.value || "0";
+    const inputMax = container.querySelector(`#form-st-${id}-max`)?.value || "0";
+
+    const valorCurAntigo = antigos[id]?.atual ?? 0;
+    const valorMaxAntigo = antigos[id]?.max ?? 0;
+
+    resultado[id] = {
+      atual: calcularNovoStat(valorCurAntigo, inputCur),
+      max: calcularNovoStat(valorMaxAntigo, inputMax)
+    };
+  });
+
+  return resultado;
+}
+
+=== ARQUIVO: \painel\fichas\guarda.json ===
+{
+  "id": "guarda-1",
+  "nome": "Guarda de Solaria",
+  "tag": "NPC",
+  "visivelPlayer": true,
+  "desc": "HP: 25 | Defesa: 14 | Lança Solar (1d8+2).",
+  "segredoGM": "Subornável por 15 moedas de ouro."
+}
+
 === ARQUIVO: \painel\fichas\module.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { vincularCalculosCard } from "./stats.js";
+import { vincularCalculosCard } from "./components/stats.js";
 import { SheetStore } from "./store.js";
-import { criarElementoCard } from "./card.js";
-import { renderFormulario } from "./form.js";
+import { criarElementoCard } from "./components/card.js";
+import { renderFormulario } from "./components/form.js";
 import { iniciarOuvintesOwlbear } from "./obr-sync.js";
 import { atualizarHudToken, removerHudToken, sincronizarTodosHuds } from "../../hud/token-hud.js";
 import { SolariaSync } from "../../core/sync.js";
@@ -4382,8 +4553,8 @@ input:focus {
 
 === ARQUIVO: \painel\fichas\quick-stat.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { calcularNovoStat } from "./calc.js";
-import { normalizarStats } from "./stats.js";
+import { calcularNovoStat } from "./components/calc.js";
+import { normalizarStats } from "./components/stats.js";
 import { atualizarHudToken } from "../../hud/token-hud.js";
 import { SolariaSync } from "../../core/sync.js";
 
@@ -4467,165 +4638,6 @@ async function salvarEFechar() {
     }
   });
 });
-
-=== ARQUIVO: \painel\fichas\stats.js ===
-import { calcularNovoStat } from "./calc.js";
-
-const STATS_CHAVES = [
-  { id: "pv", label: "PV", cor: "#f7768e" },
-  { id: "pm", label: "PM", cor: "#7aa2f7" },
-  { id: "rm", label: "RM", cor: "#e0af68" },
-  { id: "cd", label: "CD", cor: "#bb9af7" },
-  { id: "atk", label: "ATK", cor: "#73daca" }
-];
-
-/**
- * Normaliza o objeto de stats garantindo que cada atributo tenha { atual, max }.
- * Mantém retrocompatibilidade se existirem fichas antigas salvas com números simples.
- */
-export function normalizarStats(statsRaw = {}) {
-  const norm = {};
-  STATS_CHAVES.forEach(({ id }) => {
-    const s = statsRaw[id];
-    if (typeof s === "object" && s !== null) {
-      norm[id] = {
-        atual: parseFloat(s.atual ?? s.max ?? 0),
-        max: parseFloat(s.max ?? s.atual ?? 0)
-      };
-    } else {
-      const val = parseFloat(s ?? 0) || 0;
-      norm[id] = { atual: val, max: val };
-    }
-  });
-  return norm;
-}
-
-/**
- * Renderiza a grade de stats no card principal da ficha com inputs inline de cálculo rápido.
- */
-export function renderStatsCard(statsRaw = {}, fichaId = "") {
-  const stats = normalizarStats(statsRaw);
-
-  let html = `<div class="stats-badge-grid" data-ficha-id="${fichaId}">`;
-
-  STATS_CHAVES.forEach(({ id, label, cor }) => {
-    const item = stats[id];
-    html += `
-      <div class="stat-pill" style="border-top: 2px solid ${cor};">
-        <span class="stat-pill-label">${label}</span>
-        <div class="stat-values-row">
-          <input 
-            type="text" 
-            class="stat-calc-input stat-input-cur" 
-            data-ficha-id="${fichaId}" 
-            data-stat="${id}" 
-            data-sub="atual" 
-            title="Valor Atual (digite -10, +5, /2, etc)" 
-            value="${item.atual}"
-          />
-          <span class="stat-slash">/</span>
-          <input 
-            type="text" 
-            class="stat-calc-input stat-input-max" 
-            data-ficha-id="${fichaId}" 
-            data-stat="${id}" 
-            data-sub="max" 
-            title="Valor Máximo" 
-            value="${item.max}"
-          />
-        </div>
-      </div>
-    `;
-  });
-
-  html += `</div>`;
-  return html;
-}
-
-/**
- * Liga os ouvintes de cálculo matemático dinâmico nos inputs dos cards.
- */
-export function vincularCalculosCard(container, aoAtualizarFicha) {
-  container.querySelectorAll(".stat-calc-input").forEach(input => {
-    // Impede que o clique no input expanda/feche o card da ficha
-    input.addEventListener("click", (e) => e.stopPropagation());
-
-    const aplicarOperacao = () => {
-      const fichaId = input.dataset.fichaId;
-      const statId = input.dataset.stat;
-      const sub = input.dataset.sub; // "atual" ou "max"
-      const valorDigitado = input.value.trim();
-
-      aoAtualizarFicha(fichaId, (ficha) => {
-        ficha.stats = normalizarStats(ficha.stats);
-        const valorAntigo = ficha.stats[statId][sub];
-        const novoValor = calcularNovoStat(valorAntigo, valorDigitado);
-
-        ficha.stats[statId][sub] = novoValor;
-        input.value = novoValor;
-      });
-    };
-
-    input.addEventListener("change", aplicarOperacao);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        input.blur();
-      }
-    });
-  });
-}
-
-/**
- * Renderiza o formulário completo de edição de stats (com Atual e Max).
- */
-export function renderStatsForm(statsRaw = {}) {
-  const stats = normalizarStats(statsRaw);
-
-  let html = `
-    <div class="section-label" style="margin-top:10px;">Atributos / Stats (Atual / Máx)</div>
-    <div class="stats-badge-grid">
-  `;
-
-  STATS_CHAVES.forEach(({ id, label, cor }) => {
-    const item = stats[id];
-    html += `
-      <div class="stat-pill" style="border-top: 2px solid ${cor};">
-        <span class="stat-pill-label">${label}</span>
-        <div class="stat-values-row">
-          <input type="text" id="form-st-${id}-cur" class="stat-calc-input" placeholder="Atual" value="${item.atual}">
-          <span class="stat-slash">/</span>
-          <input type="text" id="form-st-${id}-max" class="stat-calc-input" placeholder="Máx" value="${item.max}">
-        </div>
-      </div>
-    `;
-  });
-
-  html += `</div>`;
-  return html;
-}
-
-/**
- * Coleta os dados preenchidos no formulário aplicando o cálculo caso alguém digite fórmulas.
- */
-export function getStatsFormData(container, statsAntigos = {}) {
-  const antigos = normalizarStats(statsAntigos);
-  const resultado = {};
-
-  STATS_CHAVES.forEach(({ id }) => {
-    const inputCur = container.querySelector(`#form-st-${id}-cur`)?.value || "0";
-    const inputMax = container.querySelector(`#form-st-${id}-max`)?.value || "0";
-
-    const valorCurAntigo = antigos[id]?.atual ?? 0;
-    const valorMaxAntigo = antigos[id]?.max ?? 0;
-
-    resultado[id] = {
-      atual: calcularNovoStat(valorCurAntigo, inputCur),
-      max: calcularNovoStat(valorMaxAntigo, inputMax)
-    };
-  });
-
-  return resultado;
-}
 
 === ARQUIVO: \painel\fichas\store.js ===
 import { SolariaSync } from "../../core/sync.js";
@@ -5188,6 +5200,80 @@ export function renderizarListaPadrao(section, pasta, registros = [], Estado) {
   desenhar();
 }
 
+=== ARQUIVO: \painel\painel-resize.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { Estado } from "./estado.js";
+
+const ID_PAINEL = "solaria-painel-inferior-direito";
+
+export async function aplicarDimensoes(largura, altura) {
+  const w = Math.max(340, Math.min(largura, window.screen.width - 40));
+  const h = Math.max(400, Math.min(altura, window.screen.height - 100));
+
+  Estado.dimensoes = { width: w, height: h };
+  localStorage.setItem("solaria_painel_dimensoes", JSON.stringify(Estado.dimensoes));
+
+  try {
+    await OBR.popover.setWidth(ID_PAINEL, Math.round(w));
+    await OBR.popover.setHeight(ID_PAINEL, Math.round(h));
+  } catch (_) {}
+}
+
+export function configurarArrasto() {
+  const elTop = document.getElementById("resize-top");
+  const elLeft = document.getElementById("resize-left");
+  const elCorner = document.getElementById("resize-corner");
+
+  function iniciarRedimensionamento(e, redimensionaW, redimensionaH) {
+    e.preventDefault();
+    const startX = e.screenX;
+    const startY = e.screenY;
+    const startW = Estado.dimensoes.width;
+    const startH = Estado.dimensoes.height;
+
+    const onPointerMove = (ev) => {
+      let novoW = startW;
+      let novoH = startH;
+
+      if (redimensionaW) {
+        novoW = startW + (startX - ev.screenX);
+      }
+      if (redimensionaH) {
+        novoH = startH + (startY - ev.screenY);
+      }
+
+      aplicarDimensoes(novoW, novoH);
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
+
+  elTop?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, false, true));
+  elLeft?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, true, false));
+  elCorner?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, true, true));
+
+  const btnPreset = document.getElementById("btn-toggle-size");
+  const presets = [
+    { label: "📐 Médio", width: 480, height: 680 },
+    { label: "📐 Amplo", width: 660, height: 760 },
+    { label: "📐 Max", width: 860, height: 860 }
+  ];
+  let presetIdx = 0;
+
+  btnPreset?.addEventListener("click", () => {
+    presetIdx = (presetIdx + 1) % presets.length;
+    const p = presets[presetIdx];
+    btnPreset.textContent = p.label;
+    aplicarDimensoes(p.width, p.height);
+  });
+}
+
 === ARQUIVO: \painel\painel.css ===
 :root {
   --bg: #14161f;
@@ -5500,80 +5586,6 @@ OBR.onReady(async () => {
   const role = await OBR.player.getRole();
   configurarCargos(role);
 });
-
-=== ARQUIVO: \painel\resize.js ===
-import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { Estado } from "./estado.js";
-
-const ID_PAINEL = "solaria-painel-inferior-direito";
-
-export async function aplicarDimensoes(largura, altura) {
-  const w = Math.max(340, Math.min(largura, window.screen.width - 40));
-  const h = Math.max(400, Math.min(altura, window.screen.height - 100));
-
-  Estado.dimensoes = { width: w, height: h };
-  localStorage.setItem("solaria_painel_dimensoes", JSON.stringify(Estado.dimensoes));
-
-  try {
-    await OBR.popover.setWidth(ID_PAINEL, Math.round(w));
-    await OBR.popover.setHeight(ID_PAINEL, Math.round(h));
-  } catch (_) {}
-}
-
-export function configurarArrasto() {
-  const elTop = document.getElementById("resize-top");
-  const elLeft = document.getElementById("resize-left");
-  const elCorner = document.getElementById("resize-corner");
-
-  function iniciarRedimensionamento(e, redimensionaW, redimensionaH) {
-    e.preventDefault();
-    const startX = e.screenX;
-    const startY = e.screenY;
-    const startW = Estado.dimensoes.width;
-    const startH = Estado.dimensoes.height;
-
-    const onPointerMove = (ev) => {
-      let novoW = startW;
-      let novoH = startH;
-
-      if (redimensionaW) {
-        novoW = startW + (startX - ev.screenX);
-      }
-      if (redimensionaH) {
-        novoH = startH + (startY - ev.screenY);
-      }
-
-      aplicarDimensoes(novoW, novoH);
-    };
-
-    const onPointerUp = () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-  }
-
-  elTop?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, false, true));
-  elLeft?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, true, false));
-  elCorner?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, true, true));
-
-  const btnPreset = document.getElementById("btn-toggle-size");
-  const presets = [
-    { label: "📐 Médio", width: 480, height: 680 },
-    { label: "📐 Amplo", width: 660, height: 760 },
-    { label: "📐 Max", width: 860, height: 860 }
-  ];
-  let presetIdx = 0;
-
-  btnPreset?.addEventListener("click", () => {
-    presetIdx = (presetIdx + 1) % presets.length;
-    const p = presets[presetIdx];
-    btnPreset.textContent = p.label;
-    aplicarDimensoes(p.width, p.height);
-  });
-}
 
 === ARQUIVO: \server\builder.js ===
 const fs = require("fs");
@@ -6014,6 +6026,52 @@ module.exports = { iniciarWatcher };
 
 === ARQUIVO: \server.js ===
 require("./server/index.js");
+
+=== ARQUIVO: \ui\confirm-delete-btn.js ===
+/**
+ * Componente Reutilizável de Botão de Exclusão com Confirmação (Solaria)
+ */
+
+/**
+ * Cria o botão de exclusão com temporizador de segurança para duplo clique
+ * @param {Function} aoConfirmarExclusao - Callback executado no segundo clique
+ * @param {string} classExtra - Classes CSS adicionais
+ * @returns {HTMLButtonElement} Botão configurado
+ */
+export function criarBotaoConfirmarExclusao(aoConfirmarExclusao, classExtra = "btn-delete-note") {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = classExtra;
+  btn.title = "Clique duas vezes para excluir";
+  btn.textContent = "✕";
+
+  let resetTimer = null;
+
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (btn.classList.contains("confirm-delete")) {
+      clearTimeout(resetTimer);
+      btn.classList.remove("confirm-delete");
+      btn.textContent = "✕";
+      if (typeof aoConfirmarExclusao === "function") {
+        aoConfirmarExclusao();
+      }
+      return;
+    }
+
+    btn.classList.add("confirm-delete");
+    btn.textContent = "Excluir?";
+
+    resetTimer = setTimeout(() => {
+      btn.classList.remove("confirm-delete");
+      btn.textContent = "✕";
+    }, 3000);
+  });
+
+  return btn;
+}
 
 === ARQUIVO: \ui\rich-editor\checklist.js ===
 /**
@@ -6470,5 +6528,57 @@ export function criarBarraFerramentas({ aoFormatarTexto, aoInserirLista, aoInser
   toolbar.appendChild(btnTodo);
 
   return toolbar;
+}
+
+=== ARQUIVO: \ui\visibility-btn.js ===
+/**
+ * Componente Reutilizável de Botão de Visibilidade / Permissão (Solaria)
+ */
+
+export function obterIconePermissao(objeto) {
+  if (objeto.visivelPlayer === false) return "🔒";
+  if (!objeto.editavelPlayer) return "👁️";
+  return "✍️";
+}
+
+export function obterTituloPermissao(objeto) {
+  if (objeto.visivelPlayer === false) return "Status: Oculto para jogadores (Clique para liberar Leitura)";
+  if (!objeto.editavelPlayer) return "Status: Jogador pode Ver apenas (Clique para liberar Edição)";
+  return "Status: Jogador pode Ver e Editar (Clique para Ocultar)";
+}
+
+/**
+ * Cria o elemento de botão de permissão para injetar no cabeçalho dos cards
+ * @param {Object} objeto - Ficha ou Nota
+ * @param {Function} aoMudarPermissao - Callback executado ao clicar no botão
+ * @param {string} classExtra - Classes CSS adicionais
+ * @returns {HTMLButtonElement} Botão configurado
+ */
+export function criarBotaoVisibilidade(objeto, aoMudarPermissao, classExtra = "") {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = `btn-toggle-permissao ${classExtra}`.trim();
+  btn.title = obterTituloPermissao(objeto);
+  btn.textContent = obterIconePermissao(objeto);
+
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    let novasPermissoes = {};
+    if (objeto.visivelPlayer === false) {
+      novasPermissoes = { visivelPlayer: true, editavelPlayer: false };
+    } else if (!objeto.editavelPlayer) {
+      novasPermissoes = { visivelPlayer: true, editavelPlayer: true };
+    } else {
+      novasPermissoes = { visivelPlayer: false, editavelPlayer: false };
+    }
+
+    if (typeof aoMudarPermissao === "function") {
+      aoMudarPermissao(novasPermissoes);
+    }
+  });
+
+  return btn;
 }
 

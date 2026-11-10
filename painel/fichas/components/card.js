@@ -2,18 +2,9 @@ import { renderStatsCard } from "./stats.js";
 import { renderHistoricoCard } from "./historico.js";
 import { renderHabilidadesCard } from "./habilidades.js";
 import { renderInventarioCard } from "./inventario.js";
-import { selecionarTokenNoGrid, desvincularToken, obterDadosTokenSelecionado, vincularTokenAoId } from "./obr-sync.js";
-import { atualizarHudToken, removerHudToken } from "../../hud/token-hud.js";
-
-export function UI_BotaoPermissao(f, classExtra = "btn-icon-action") {
-  if (f.visivelPlayer === false) {
-    return `<button type="button" class="${classExtra} btn-toggle-permissao" title="Status: Oculto para jogadores (Clique para liberar Leitura)">🔒</button>`;
-  }
-  if (!f.editavelPlayer) {
-    return `<button type="button" class="${classExtra} btn-toggle-permissao" title="Status: Jogador pode Ver apenas (Clique para liberar Edição)">👁️</button>`;
-  }
-  return `<button type="button" class="${classExtra} btn-toggle-permissao" title="Status: Jogador pode Ver e Editar (Clique para Ocultar)">✍️</button>`;
-}
+import { selecionarTokenNoGrid, desvincularToken, obterDadosTokenSelecionado, vincularTokenAoId } from "../obr-sync.js";
+import { atualizarHudToken, removerHudToken } from "../../../hud/token-hud.js";
+import { criarBotaoVisibilidade } from "../../../ui/visibility-btn.js";
 
 export function criarElementoCard(f, role, acoes) {
   const isGM = role === "GM";
@@ -39,7 +30,7 @@ export function criarElementoCard(f, role, acoes) {
       </div>
       <div class="sheet-actions">
         <span class="sheet-tag-badge">${f.tag || "NPC"}</span>
-        ${isGM ? UI_BotaoPermissao(f) : ""}
+        <div class="visibility-btn-slot"></div>
         ${isEditavel ? `<button type="button" class="btn-icon-action btn-edit" title="Editar Ficha">✏️</button>` : ""}
       </div>
     </div>
@@ -81,6 +72,17 @@ export function criarElementoCard(f, role, acoes) {
     });
   }
 
+  // Insere o botão de visibilidade modularizado caso seja GM
+  const visibilitySlot = card.querySelector(".visibility-btn-slot");
+  if (isGM && visibilitySlot) {
+    const btnVisibilidade = criarBotaoVisibilidade(f, async (novasPermissoes) => {
+      Object.assign(f, novasPermissoes);
+      acoes.onAtualizar(f);
+      await atualizarHudToken(f);
+    }, "btn-icon-action");
+    visibilitySlot.appendChild(btnVisibilidade);
+  }
+
   card.querySelector(".sheet-card-header").addEventListener("click", (e) => {
     if (
       e.target.closest(".btn-edit") ||
@@ -100,26 +102,6 @@ export function criarElementoCard(f, role, acoes) {
   }
 
   if (isGM) {
-    // Ciclo de permissões: 🔒 Oculto ➔ 👁️ Ver ➔ ✍️ Ver e Editar ➔ 🔒 Oculto
-    card.querySelector(".btn-toggle-permissao")?.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (f.visivelPlayer === false) {
-        f.visivelPlayer = true;
-        f.editavelPlayer = false;
-      } else if (!f.editavelPlayer) {
-        f.visivelPlayer = true;
-        f.editavelPlayer = true;
-      } else {
-        f.visivelPlayer = false;
-        f.editavelPlayer = false;
-      }
-
-      acoes.onAtualizar(f);
-      await atualizarHudToken(f);
-    });
-
     card.querySelector(".btn-token-unlink")?.addEventListener("click", async () => {
       const idParaRemover = f.tokenId;
       f.tokenId = null;

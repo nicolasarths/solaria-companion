@@ -2,7 +2,7 @@ import { renderStatsForm, getStatsFormData } from "./stats.js";
 import { renderHistoricoForm, getHistoricoFormData } from "./historico.js";
 import { renderHabilidadesForm, getHabilidadesFormData } from "./habilidades.js";
 import { renderInventarioForm, getInventarioFormData } from "./inventario.js";
-import { vincularTokenAoId, desvincularToken } from "./obr-sync.js";
+import { vincularTokenAoId, desvincularToken } from "../obr-sync.js";
 
 export function renderFormulario(container, ficha, onVoltar, onSalvar, onExcluir, role = "GM") {
   const isGM = role === "GM";

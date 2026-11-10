@@ -10,21 +10,24 @@ const GITHUB_PAGES_MANIFEST = "https://nicolasarths.github.io/solaria-companion/
  * Consulta periodicamente o GitHub Pages até a versão alvo estar disponível
  */
 async function aguardarDeployGitHubPages(versaoAlvo) {
-  console.log(`\n📡 [Monitor Pages] Monitorando build no GitHub Pages...`);
-  console.log(`🎯 Aguardando versão remota: v${versaoAlvo}\n`);
+  console.log(`\n==================================================`);
+  console.log(`📡 [Monitor Pages] Acompanhando build no GitHub...`);
+  console.log(`🎯 Aguardando versão remota: v${versaoAlvo}`);
+  console.log(`==================================================\n`);
 
-  const intervaloMs = 6000;
-  const maxTentativas = 40; // 4 minutos de limite
+  const intervaloMs = 5000;
+  const maxTentativas = 48; // Limite de 4 minutos
   let tentativas = 0;
   const inicio = Date.now();
 
-  const checar = setInterval(async () => {
+  const timer = setInterval(async () => {
     tentativas++;
     const decorridoSegundos = Math.round((Date.now() - inicio) / 1000);
 
     try {
-      // Força o CDN do GitHub Pages a entregar dados frescos sem cache
-      const res = await fetch(`${GITHUB_PAGES_MANIFEST}?_t=${Date.now()}`, {
+      // Força bypass de cache no CDN do GitHub Pages com timestamp dinâmico
+      const url = `${GITHUB_PAGES_MANIFEST}?_nocache=${Date.now()}`;
+      const res = await fetch(url, {
         headers: {
           "Cache-Control": "no-cache, no-store, must-revalidate",
           "Pragma": "no-cache"
@@ -35,8 +38,8 @@ async function aguardarDeployGitHubPages(versaoAlvo) {
         const json = await res.json().catch(() => ({}));
         
         if (json.version === versaoAlvo) {
-          clearInterval(checar);
-          process.stdout.write("\x07"); // Emite aviso sonoro (beep) no terminal se suportado
+          clearInterval(timer);
+          try { process.stdout.write("\x07"); } catch (_) {} // Beep sonoro no terminal
           console.log(`\n==================================================`);
           console.log(`🎉 [GITHUB PAGES NO AR!] (levou ${decorridoSegundos}s)`);
           console.log(`🚀 A versão v${versaoAlvo} já está ativa para todos os jogadores!`);
@@ -46,12 +49,12 @@ async function aguardarDeployGitHubPages(versaoAlvo) {
       }
     } catch (_) {}
 
-    process.stdout.write(`⏳ Compilando no GitHub... (${decorridoSegundos}s decorridos) \r`);
+    console.log(`⏳ [${decorridoSegundos}s] GitHub Actions a compilar...`);
 
     if (tentativas >= maxTentativas) {
-      clearInterval(checar);
-      console.log(`\n⚠️ [Aviso] Tempo limite de checagem excedido (4 min).`);
-      console.log(`Confira o status da Action em: https://github.com/nicolasarths/solaria-companion/actions\n`);
+      clearInterval(timer);
+      console.log(`\n⚠️ Tempo limite de monitorização excedido (4 min).`);
+      console.log(`Verifique o pipeline em: https://github.com/nicolasarths/solaria-companion/actions\n`);
     }
   }, intervaloMs);
 }
@@ -83,7 +86,7 @@ function publicarAtualizacao(mensagemCommit, rootDir) {
     } catch (_) {}
   }
 
-  // 3. Atualiza arquivos gerados
+  // 3. Atualiza ficheiros gerados
   sincronizarModulosJson(rootDir);
   gerarProjetoCompleto(rootDir);
 
@@ -99,9 +102,9 @@ function publicarAtualizacao(mensagemCommit, rootDir) {
     console.log(`🚀 Executando git push origin main ...`);
     execSync("git push", { stdio: "inherit", cwd: rootDir });
 
-    console.log(`✅ Push enviado ao GitHub.`);
+    console.log(`✅ Push enviado com sucesso ao GitHub.`);
 
-    // 5. Inicia o monitoramento automático do Pages em segundo plano
+    // 5. Inicia o monitor em segundo plano
     aguardarDeployGitHubPages(timestampVersao);
 
   } catch (err) {

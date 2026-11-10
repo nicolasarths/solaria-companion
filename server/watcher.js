@@ -8,18 +8,23 @@ function iniciarWatcher(rootDir) {
   fs.watch(rootDir, { recursive: true }, (eventType, filename) => {
     if (!filename) return;
 
+    // Normaliza separadores de caminho (Windows vs POSIX)
+    const norm = filename.replace(/\\/g, "/");
+
+    // Ignora alterações em diretórios internos e nos arquivos gerados pelo próprio watcher
     if (
-      filename.includes(".git") || 
-      filename.includes("node_modules") || 
-      filename === "modulos.json" || 
-      filename === "projeto_completo.txt"
+      norm.includes(".git/") || 
+      norm.includes("node_modules/") || 
+      norm.endsWith("modulos.json") || 
+      norm.endsWith("projeto_completo.txt")
     ) {
       return;
     }
 
     clearTimeout(watchTimeout);
     watchTimeout = setTimeout(() => {
-      if (filename.startsWith("painel")) {
+      // Se qualquer arquivo dentro de painel/ for criado, editado ou excluído, recompila modulos.json
+      if (norm.startsWith("painel/")) {
         sincronizarModulosJson(rootDir);
       }
       gerarProjetoCompleto(rootDir);

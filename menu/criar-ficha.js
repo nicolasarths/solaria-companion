@@ -1,5 +1,5 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { resolverRota } from "../core/config.js";
+import { BASE_URL } from "../core/config.js";
 
 export const criarFichaOption = {
   id: "solaria/context-menu-criar-ficha",
@@ -7,7 +7,7 @@ export const criarFichaOption = {
   config: {
     icons: [
       {
-        icon: resolverRota("/favicon.svg"),
+        icon: BASE_URL + "/favicon.svg",
         label: "Criar Ficha",
         filter: {
           every: [

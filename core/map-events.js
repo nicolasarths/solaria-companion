@@ -4,7 +4,7 @@ import {
   sincronizarTodosHuds, 
   METADATA_HUD_KEY, 
   METADATA_BTN_FICHA_KEY 
-} from "../painel/fichas/token-hud.js";
+} from "../hud/token-hud.js";
 import { resolverRota } from "./config.js";
 
 async function inicializarHudsAoCarregarCena() {
@@ -31,7 +31,6 @@ async function inicializarHudsAoCarregarCena() {
 }
 
 export function iniciarEventosDoMapa() {
-  // Inicialização de HUDs ao preparar a cena
   OBR.scene.isReady().then((ready) => {
     if (ready) inicializarHudsAoCarregarCena();
   });
@@ -40,7 +39,6 @@ export function iniciarEventosDoMapa() {
     if (ready) inicializarHudsAoCarregarCena();
   });
 
-  // Escuta de clique em itens/tokens no mapa
   OBR.player.onChange(async (player) => {
     const selection = player.selection;
     if (!selection || selection.length !== 1) return;
@@ -50,7 +48,6 @@ export function iniciarEventosDoMapa() {
       const item = items[0];
       if (!item) return;
 
-      // 1. Clique no botão de pergaminho (Abrir/Focar Ficha)
       if (item.metadata?.[METADATA_BTN_FICHA_KEY]) {
         await OBR.player.deselect();
         await WindowManager.abrirOuFocarPainel();
@@ -68,7 +65,6 @@ export function iniciarEventosDoMapa() {
         return;
       }
 
-      // 2. Clique nos badges orbitais de stats (Abrir mini-editor Quick Stat)
       if (item.metadata?.[METADATA_HUD_KEY]) {
         await OBR.player.deselect();
         const { sheetId, statId, statLabel, statCor } = item.metadata;

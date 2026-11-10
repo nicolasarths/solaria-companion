@@ -4,7 +4,7 @@ import { SheetStore } from "./store.js";
 import { criarElementoCard } from "./card.js";
 import { renderFormulario } from "./form.js";
 import { iniciarOuvintesOwlbear } from "./obr-sync.js";
-import { atualizarHudToken, removerHudToken, sincronizarTodosHuds } from "./token-hud.js";
+import { atualizarHudToken, removerHudToken, sincronizarTodosHuds } from "../../hud/token-hud.js";
 import { SolariaSync } from "../../core/sync.js";
 
 export function render(container, Estado) {

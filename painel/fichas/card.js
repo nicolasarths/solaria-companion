@@ -3,7 +3,7 @@ import { renderHistoricoCard } from "./historico.js";
 import { renderHabilidadesCard } from "./habilidades.js";
 import { renderInventarioCard } from "./inventario.js";
 import { selecionarTokenNoGrid, desvincularToken, obterDadosTokenSelecionado, vincularTokenAoId } from "./obr-sync.js";
-import { atualizarHudToken, removerHudToken } from "./token-hud.js";
+import { atualizarHudToken, removerHudToken } from "../../hud/token-hud.js";
 
 export function UI_BotaoPermissao(f, classExtra = "btn-icon-action") {
   if (f.visivelPlayer === false) {

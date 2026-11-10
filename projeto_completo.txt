@@ -845,11 +845,8 @@ export async function popularSelectFichas(selectElement, OBR) {
 
 === ARQUIVO: \core\admin.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { METADATA_HUD_KEY, METADATA_BTN_FICHA_KEY } from "../painel/fichas/token-hud.js";
+import { METADATA_HUD_KEY, METADATA_BTN_FICHA_KEY } from "../hud/token-hud.js";
 
-/**
- * Limpa o localStorage local deste navegador
- */
 export function executarLimpezaCacheLocal(elementoStatus = null) {
   if (!window.confirm("Deseja apagar os dados locais do Solaria salvos neste navegador?")) return;
 
@@ -865,9 +862,6 @@ export function executarLimpezaCacheLocal(elementoStatus = null) {
   setTimeout(() => location.reload(), 400);
 }
 
-/**
- * Reseta os metadados da sala do Owlbear e remove HUDs do mapa (Apenas Mestre)
- */
 export async function executarResetSala(elementoStatus = null) {
   if (!window.confirm("ATENÇÃO: Deseja apagar todas as fichas, notas e combate da SALA do Owlbear? (Apenas GM)")) return;
 
@@ -913,13 +907,12 @@ export async function executarResetSala(elementoStatus = null) {
 === ARQUIVO: \core\background-sync.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { SolariaSync } from "./sync.js";
-import { atualizarHudToken, removerHudToken } from "../painel/fichas/token-hud.js";
+import { atualizarHudToken, removerHudToken } from "../hud/token-hud.js";
 import { WindowManager } from "./windows.js";
 
 export async function iniciarSincronizacaoBackground() {
   const currentRole = await OBR.player.getRole();
 
-  // Escuta contínua de metadados da sala (alimenta jogadores mesmo com painel fechado)
   SolariaSync.iniciarOuvinteSala({
     onFichasRecebidas: (fichasPublicas) => {
       if (currentRole !== "GM") {
@@ -933,12 +926,10 @@ export async function iniciarSincronizacaoBackground() {
     }
   });
 
-  // Atualiza estado do botão de combate quando a janela é fechada pelo "X" interno
   OBR.broadcast.onMessage("solaria/combate-fechado", () => {
     WindowManager.combateAberto = false;
   });
 
-  // Broadcasts de Fichas
   OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
     const fichaAtualizada = e.data;
     if (!fichaAtualizada || !fichaAtualizada.id) return;
@@ -984,7 +975,6 @@ export async function iniciarSincronizacaoBackground() {
     }
   });
 
-  // Broadcasts de Anotações
   OBR.broadcast.onMessage("solaria/nota-sync", async (e) => {
     const notaAtualizada = e.data;
     if (!notaAtualizada || !notaAtualizada.id) return;
@@ -1224,7 +1214,7 @@ import {
   sincronizarTodosHuds, 
   METADATA_HUD_KEY, 
   METADATA_BTN_FICHA_KEY 
-} from "../painel/fichas/token-hud.js";
+} from "../hud/token-hud.js";
 import { resolverRota } from "./config.js";
 
 async function inicializarHudsAoCarregarCena() {
@@ -1251,7 +1241,6 @@ async function inicializarHudsAoCarregarCena() {
 }
 
 export function iniciarEventosDoMapa() {
-  // Inicialização de HUDs ao preparar a cena
   OBR.scene.isReady().then((ready) => {
     if (ready) inicializarHudsAoCarregarCena();
   });
@@ -1260,7 +1249,6 @@ export function iniciarEventosDoMapa() {
     if (ready) inicializarHudsAoCarregarCena();
   });
 
-  // Escuta de clique em itens/tokens no mapa
   OBR.player.onChange(async (player) => {
     const selection = player.selection;
     if (!selection || selection.length !== 1) return;
@@ -1270,7 +1258,6 @@ export function iniciarEventosDoMapa() {
       const item = items[0];
       if (!item) return;
 
-      // 1. Clique no botão de pergaminho (Abrir/Focar Ficha)
       if (item.metadata?.[METADATA_BTN_FICHA_KEY]) {
         await OBR.player.deselect();
         await WindowManager.abrirOuFocarPainel();
@@ -1288,7 +1275,6 @@ export function iniciarEventosDoMapa() {
         return;
       }
 
-      // 2. Clique nos badges orbitais de stats (Abrir mini-editor Quick Stat)
       if (item.metadata?.[METADATA_HUD_KEY]) {
         await OBR.player.deselect();
         const { sheetId, statId, statLabel, statCor } = item.metadata;
@@ -1467,6 +1453,424 @@ export const WindowManager = {
     });
   }
 };
+
+=== ARQUIVO: \hud\hud-builders.js ===
+import { buildPath, buildText, buildShape } from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+
+/**
+ * Constrói o anel externo indicando estado crítico (laranja) ou morto (vermelho)
+ */
+export function construirAnelStatus({ token, centerX, centerY, tokenDiametro, corAnel, visivel, fichaId, metadataKey }) {
+  return buildShape()
+    .shapeType("CIRCLE")
+    .width(tokenDiametro)
+    .height(tokenDiametro)
+    .position({ x: centerX, y: centerY })
+    .fillColor("#000000")
+    .fillOpacity(0)
+    .strokeColor(corAnel)
+    .strokeWidth(6)
+    .attachedTo(token.id)
+    .layer("ATTACHMENT")
+    .disableHit(true)
+    .locked(true)
+    .visible(visivel)
+    .zIndex(5)
+    .metadata({ [metadataKey]: true, sheetId: fichaId, tipo: "status-ring" })
+    .build();
+}
+
+/**
+ * Constrói a caveira centralizada quando a criatura é derrotada (PV <= 0)
+ */
+export function construirCaveiraMorte({ token, centerX, centerY, tokenDiametro, visivel, fichaId, metadataKey }) {
+  const skullFontSize = Math.max(30, Math.round(tokenDiametro * 0.35));
+  const boxSize = skullFontSize * 2;
+
+  return buildText()
+    .textType("PLAIN")
+    .plainText("💀")
+    .position({ x: Math.round(centerX - boxSize / 2), y: Math.round(centerY - boxSize / 2) })
+    .width(boxSize)
+    .height(boxSize)
+    .fontSize(skullFontSize)
+    .textAlign("CENTER")
+    .textAlignVertical("MIDDLE")
+    .attachedTo(token.id)
+    .layer("TEXT")
+    .disableHit(true)
+    .locked(true)
+    .visible(visivel)
+    .zIndex(25)
+    .metadata({ [metadataKey]: true, sheetId: fichaId, tipo: "status-morte" })
+    .build();
+}
+
+/**
+ * Constrói o par de elementos (fundo vetorial + texto clicável) de um badge de status
+ */
+export function construirBadgeStat({ token, bx, by, badgeW, badgeH, comandos, statCfg, textoValor, visivel, fichaId, metadataKey }) {
+  const metaComum = {
+    [metadataKey]: true,
+    sheetId: fichaId,
+    statId: statCfg.id,
+    statLabel: statCfg.label,
+    statCor: statCfg.cor
+  };
+
+  const badgeFundo = buildPath()
+    .commands(comandos)
+    .position({ x: bx, y: by })
+    .fillColor("#14161f")
+    .fillOpacity(0.94)
+    .strokeColor(statCfg.cor)
+    .strokeWidth(2)
+    .attachedTo(token.id)
+    .layer("ATTACHMENT")
+    .disableHit(false)
+    .locked(true)
+    .visible(visivel)
+    .zIndex(10)
+    .metadata(metaComum)
+    .build();
+
+  const badgeTexto = buildText()
+    .textType("PLAIN")
+    .plainText(`${statCfg.label} ${textoValor}`)
+    .position({ x: bx, y: by })
+    .width(badgeW)
+    .height(badgeH)
+    .fontSize(12)
+    .fontWeight(700)
+    .fillColor("#ffffff")
+    .fillOpacity(1)
+    .strokeColor("#000000")
+    .strokeWidth(0)
+    .textAlign("CENTER")
+    .textAlignVertical("MIDDLE")
+    .attachedTo(token.id)
+    .layer("TEXT")
+    .disableHit(true)
+    .locked(true)
+    .visible(visivel)
+    .zIndex(20)
+    .metadata(metaComum)
+    .build();
+
+  return [badgeFundo, badgeTexto];
+}
+
+/**
+ * Constrói o botão orbital de pergaminho (📜) para abrir a ficha com um clique
+ */
+export function construirBotaoFicha({ token, centerX, centerY, tokenRaio, visivel, fichaId, metadataBtnKey }) {
+  const emojiSize = 30;
+  const emojiX = Math.round(centerX + tokenRaio * 0.72 - emojiSize / 2);
+  const emojiY = Math.round(centerY + tokenRaio * 0.72 - emojiSize / 2);
+
+  return buildText()
+    .textType("PLAIN")
+    .plainText("📜")
+    .position({ x: emojiX, y: emojiY })
+    .width(emojiSize)
+    .height(emojiSize)
+    .fontSize(18)
+    .textAlign("CENTER")
+    .textAlignVertical("MIDDLE")
+    .attachedTo(token.id)
+    .layer("TEXT")
+    .disableHit(false)
+    .locked(true)
+    .visible(visivel)
+    .zIndex(30)
+    .metadata({
+      [metadataBtnKey]: true,
+      sheetId: fichaId,
+      tokenId: token.id
+    })
+    .build();
+}
+
+=== ARQUIVO: \hud\hud-math.js ===
+import { Command } from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+
+export const ORBITA_STATS = [
+  { id: "atk", label: "ATK", cor: "#73daca", angulo: 165 },
+  { id: "pv",  label: "PV",  cor: "#f7768e", angulo: 215 },
+  { id: "pm",  label: "PM",  cor: "#7aa2f7", angulo: 270 },
+  { id: "rm",  label: "RM",  cor: "#e0af68", angulo: 325 },
+  { id: "cd",  label: "CD",  cor: "#bb9af7", angulo: 15 }
+];
+
+export const BADGE_CONFIG = {
+  width: 78,
+  height: 24,
+  radius: 8,
+  spacing: 8
+};
+
+/**
+ * Calcula dimensões escaladas e centro real do token no grid
+ */
+export function calcularGeometriaToken(token, sceneDpi = 150) {
+  const scaleX = Math.abs(token.scale?.x ?? 1);
+  const scaleY = Math.abs(token.scale?.y ?? 1);
+  const imgW = token.image?.width || 150;
+  const imgH = token.image?.height || 150;
+  const tokenDpi = token.grid?.dpi || 150;
+
+  const tokenWidth = (imgW / tokenDpi) * sceneDpi * scaleX;
+  const tokenHeight = (imgH / tokenDpi) * sceneDpi * scaleY;
+
+  const offsetX = token.grid?.offset?.x ?? (imgW / 2);
+  const offsetY = token.grid?.offset?.y ?? (imgH / 2);
+
+  const centerX = token.position.x + ((imgW / 2 - offsetX) / tokenDpi) * sceneDpi * scaleX;
+  const centerY = token.position.y + ((imgH / 2 - offsetY) / tokenDpi) * sceneDpi * scaleY;
+
+  const tokenRaio = Math.min(tokenWidth, tokenHeight) / 2;
+  const tokenDiametro = tokenRaio * 2;
+  const orbitalRadius = tokenRaio + BADGE_CONFIG.height / 2 + BADGE_CONFIG.spacing;
+
+  return {
+    centerX,
+    centerY,
+    tokenRaio,
+    tokenDiametro,
+    orbitalRadius
+  };
+}
+
+/**
+ * Calcula a posição x, y do badge orbital baseado no ângulo em graus
+ */
+export function calcularPosicaoOrbital(centerX, centerY, orbitalRadius, anguloGraus, badgeW, badgeH) {
+  const rad = (anguloGraus * Math.PI) / 180;
+  const px = centerX + orbitalRadius * Math.cos(rad);
+  const py = centerY + orbitalRadius * Math.sin(rad);
+
+  return {
+    bx: Math.round(px - badgeW / 2),
+    by: Math.round(py - badgeH / 2)
+  };
+}
+
+/**
+ * Formata os valores exibidos nos badges orbitais (atual/max)
+ */
+export function formatarValorStat(id, itemStat) {
+  const cur = itemStat?.atual ?? 0;
+  const max = itemStat?.max ?? cur;
+  if (id === "pv" || id === "pm") return `${cur}/${max}`;
+  if (cur === max || !max) return String(cur);
+  return `${cur}/${max}`;
+}
+
+/**
+ * Comandos vetoriais de curva para retângulos arredondados do Owlbear
+ */
+export function criarComandosRetanguloArredondado(w, h, r) {
+  const raio = Math.min(r, w / 2, h / 2);
+  return [
+    [Command.MOVE, raio, 0],
+    [Command.LINE, w - raio, 0],
+    [Command.QUAD, w, 0, w, raio],
+    [Command.LINE, w, h - raio],
+    [Command.QUAD, w, h, w - raio, h],
+    [Command.LINE, raio, h],
+    [Command.QUAD, 0, h, 0, h - raio],
+    [Command.LINE, 0, raio],
+    [Command.QUAD, 0, 0, raio, 0],
+    [Command.CLOSE]
+  ];
+}
+
+=== ARQUIVO: \hud\token-hud.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { normalizarStats } from "../painel/fichas/stats.js";
+import {
+  ORBITA_STATS,
+  BADGE_CONFIG,
+  calcularGeometriaToken,
+  calcularPosicaoOrbital,
+  formatarValorStat,
+  criarComandosRetanguloArredondado
+} from "./hud-math.js";
+import {
+  construirAnelStatus,
+  construirCaveiraMorte,
+  construirBadgeStat,
+  construirBotaoFicha
+} from "./hud-builders.js";
+
+export const METADATA_HUD_KEY = "solaria/tokenHudItem";
+export const METADATA_BTN_FICHA_KEY = "solaria/btnAbrirFicha";
+
+// Fila assíncrona por token para impedir execuções concorrentes
+const filaTokens = new Map();
+
+/**
+ * Remove todos os elementos de HUD vinculados ao token ou à ficha
+ */
+export async function removerHudToken(tokenId, fichaId = null) {
+  if (!tokenId && !fichaId) return;
+  try {
+    const role = await OBR.player.getRole();
+    if (role !== "GM") return;
+
+    const itensCena = await OBR.scene.items.getItems();
+    const itensAntigos = itensCena.filter((item) => {
+      const isHud = item.metadata?.[METADATA_HUD_KEY] || item.metadata?.[METADATA_BTN_FICHA_KEY];
+      const matchToken = tokenId && item.attachedTo === tokenId;
+      const matchFicha = fichaId && item.metadata?.sheetId === fichaId;
+      return isHud && (matchToken || matchFicha);
+    });
+
+    if (itensAntigos.length > 0) {
+      await OBR.scene.items.deleteItems(itensAntigos.map((i) => i.id));
+    }
+  } catch (err) {
+    console.error("Erro ao remover HUD:", err);
+  }
+}
+
+/**
+ * Ponto de entrada para desenhar ou atualizar os badges no mapa
+ */
+export async function atualizarHudToken(ficha, tokenIdEspecifico = null) {
+  const tokenId = tokenIdEspecifico || ficha?.tokenId;
+  if (!tokenId || !ficha) return;
+
+  try {
+    const role = await OBR.player.getRole();
+    if (role !== "GM") return;
+  } catch (_) {
+    return;
+  }
+
+  const anterior = filaTokens.get(tokenId) || Promise.resolve();
+  const proxima = anterior
+    .catch(() => {})
+    .then(() => _desenharHudInterno(ficha, tokenId))
+    .finally(() => {
+      if (filaTokens.get(tokenId) === proxima) {
+        filaTokens.delete(tokenId);
+      }
+    });
+
+  filaTokens.set(tokenId, proxima);
+  return proxima;
+}
+
+async function _desenharHudInterno(ficha, tokenId) {
+  try {
+    await removerHudToken(tokenId, ficha.id);
+
+    const items = await OBR.scene.items.getItems([tokenId]);
+    const token = items[0];
+    if (!token) return;
+
+    let sceneDpi = 150;
+    try { sceneDpi = await OBR.grid.getDpi(); } catch (_) {}
+
+    const { centerX, centerY, tokenRaio, tokenDiametro, orbitalRadius } = calcularGeometriaToken(token, sceneDpi);
+    const visivel = ficha.visivelPlayer !== false;
+    const statsNorm = normalizarStats(ficha.stats);
+    const novosItens = [];
+
+    const statsAtivosGlobais = localStorage.getItem("solaria_exibir_stats") !== "false";
+
+    if (statsAtivosGlobais) {
+      const pvStat = statsNorm.pv || { atual: 0, max: 0 };
+      const curPv = Number(pvStat.atual) || 0;
+      const maxPv = Number(pvStat.max) || curPv;
+
+      const isMorto = curPv <= 0;
+      const isCritico = !isMorto && maxPv > 0 && curPv < (maxPv * 0.10);
+
+      // 1. Círculo de Estado Crítico ou Derrotado
+      if (isMorto || isCritico) {
+        novosItens.push(construirAnelStatus({
+          token,
+          centerX,
+          centerY,
+          tokenDiametro,
+          corAnel: isMorto ? "#e63946" : "#ff9e3b",
+          visivel,
+          fichaId: ficha.id,
+          metadataKey: METADATA_HUD_KEY
+        }));
+      }
+
+      // 2. Caveira Centralizada se Derrotado
+      if (isMorto) {
+        novosItens.push(construirCaveiraMorte({
+          token,
+          centerX,
+          centerY,
+          tokenDiametro,
+          visivel,
+          fichaId: ficha.id,
+          metadataKey: METADATA_HUD_KEY
+        }));
+      }
+
+      // 3. Badges orbitais dos atributos
+      const comandos = criarComandosRetanguloArredondado(BADGE_CONFIG.width, BADGE_CONFIG.height, BADGE_CONFIG.radius);
+
+      ORBITA_STATS.forEach((cfg) => {
+        const { bx, by } = calcularPosicaoOrbital(centerX, centerY, orbitalRadius, cfg.angulo, BADGE_CONFIG.width, BADGE_CONFIG.height);
+        const textoValor = formatarValorStat(cfg.id, statsNorm[cfg.id]);
+
+        const badgeItens = construirBadgeStat({
+          token,
+          bx,
+          by,
+          badgeW: BADGE_CONFIG.width,
+          badgeH: BADGE_CONFIG.height,
+          comandos,
+          statCfg: cfg,
+          textoValor,
+          visivel,
+          fichaId: ficha.id,
+          metadataKey: METADATA_HUD_KEY
+        });
+
+        novosItens.push(...badgeItens);
+      });
+    }
+
+    // 4. Botão Flutuante (📜)
+    novosItens.push(construirBotaoFicha({
+      token,
+      centerX,
+      centerY,
+      tokenRaio,
+      visivel,
+      fichaId: ficha.id,
+      metadataBtnKey: METADATA_BTN_FICHA_KEY
+    }));
+
+    if (novosItens.length > 0) {
+      await OBR.scene.items.addItems(novosItens);
+    }
+  } catch (err) {
+    console.error("Erro ao desenhar HUD:", err);
+  }
+}
+
+/**
+ * Sincroniza os badges de todos os tokens que possuem ficha vinculada
+ */
+export async function sincronizarTodosHuds(fichas = []) {
+  try {
+    const role = await OBR.player.getRole();
+    if (role !== "GM") return;
+    for (const f of fichas) {
+      if (f.tokenId) await atualizarHudToken(f);
+    }
+  } catch (_) {}
+}
 
 === ARQUIVO: \index.css ===
 body {
@@ -1740,7 +2144,7 @@ input:checked + .slider:before {
 
   <button type="button" id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>
 
-  <script type="module" src="./main.js?v=2026.11.10-240"></script>
+  <script type="module" src="./main.js?v=2026.11.10-250"></script>
 </body>
 </html>
 
@@ -1755,19 +2159,15 @@ import {
   sincronizarTodosHuds, 
   METADATA_HUD_KEY, 
   METADATA_BTN_FICHA_KEY 
-} from "./painel/fichas/token-hud.js";
+} from "./hud/token-hud.js";
+import { executarLimpezaCacheLocal, executarResetSala } from "./core/admin.js";
 
-// Exportações de conveniência delegadas ao WindowManager
 export const abrirOuFocarPainel = () => WindowManager.abrirOuFocarPainel();
 export const togglePainelCombate = () => WindowManager.toggleCombate();
 
-/**
- * Conecta os controles visuais e de armazenamento do index.html
- */
 function configurarControlesUI() {
   const cacheStatus = document.getElementById("cache-status");
 
-  // 1. Abertura e alternância de janelas
   document.getElementById("toggle-painel")?.addEventListener("click", () => {
     WindowManager.togglePainel();
   });
@@ -1776,7 +2176,6 @@ function configurarControlesUI() {
     WindowManager.toggleCombate();
   });
 
-  // 2. Opções visuais do usuário
   const toggleStats = document.getElementById("toggle-stats");
   if (toggleStats) {
     toggleStats.checked = localStorage.getItem("solaria_exibir_stats") !== "false";
@@ -1795,78 +2194,26 @@ function configurarControlesUI() {
     });
   }
 
-  // 3. Limpeza de cache local
   document.getElementById("btn-limpar-cache")?.addEventListener("click", () => {
-    if (!window.confirm("Deseja apagar os dados locais do Solaria salvos neste navegador?")) return;
-
-    Object.keys(localStorage)
-      .filter(k => k.startsWith("solaria_"))
-      .forEach(k => localStorage.removeItem(k));
-
-    if (cacheStatus) {
-      cacheStatus.textContent = "Cache local limpo! Recarregando...";
-      cacheStatus.style.color = "#9ece6a";
-    }
-    setTimeout(() => location.reload(), 400);
+    executarLimpezaCacheLocal(cacheStatus);
   });
 
-  // 4. Reset dos dados da sala no Owlbear (Apenas GM)
   document.getElementById("btn-limpar-sala")?.addEventListener("click", async () => {
-    if (!window.confirm("Deseja apagar todas as fichas, notas e combate da SALA do Owlbear Rodeo? (Apenas Mestre)")) return;
-
-    try {
-      const role = await OBR.player.getRole();
-      if (role !== "GM") {
-        alert("Apenas o Mestre pode resetar os dados da sala.");
-        return;
-      }
-
-      await OBR.room.setMetadata({
-        "solaria/sync_fichas": [],
-        "solaria/sync_notas": [],
-        "solaria/sync_combate": { rodada: 1, ativoIndex: 0, participantes: [] }
-      });
-
-      const itens = await OBR.scene.items.getItems();
-      const huds = itens.filter(i => 
-        i.metadata?.[METADATA_HUD_KEY] || 
-        i.metadata?.[METADATA_BTN_FICHA_KEY] || 
-        i.id.startsWith("solaria_hud_")
-      );
-
-      if (huds.length > 0) {
-        await OBR.scene.items.deleteItems(huds.map(h => h.id));
-      }
-
-      if (cacheStatus) {
-        cacheStatus.textContent = "Sala e HUDs do mapa resetados!";
-        cacheStatus.style.color = "#9ece6a";
-      }
-      try { OBR.notification.show("Dados da sala e HUDs resetados! 🧹"); } catch (_) {}
-    } catch (err) {
-      if (cacheStatus) {
-        cacheStatus.textContent = "Erro: " + err.message;
-        cacheStatus.style.color = "#f7768e";
-      }
-    }
+    await executarResetSala(cacheStatus);
   });
 
-  // 5. Inicialização opcional configurada pelo usuário
   if (localStorage.getItem("solaria_auto_abrir") === "true") {
     setTimeout(() => WindowManager.abrirOuFocarPainel(), 500);
   }
 }
 
 OBR.onReady(async () => {
-  // Inicializa subsistemas desacoplados
   await iniciarSincronizacaoBackground();
   iniciarEventosDoMapa();
   await registrarMenusContexto({
     abrirOuFocarPainel: () => WindowManager.abrirOuFocarPainel()
   });
   configurarInterfaceNuvem();
-
-  // Liga controles da interface
   configurarControlesUI();
 });
 
@@ -1874,7 +2221,7 @@ OBR.onReady(async () => {
 {
   "manifest_version": 1,
   "name": "Solaria Companion",
-  "version": "2026.11.10-240",
+  "version": "2026.11.10-250",
   "description": "Extensão para Solaria no Owlbear Rodeo",
   "author": "Nicolas Arths",
   "icon": "/solaria-companion/favicon.svg",
@@ -3194,7 +3541,7 @@ import { renderHistoricoCard } from "./historico.js";
 import { renderHabilidadesCard } from "./habilidades.js";
 import { renderInventarioCard } from "./inventario.js";
 import { selecionarTokenNoGrid, desvincularToken, obterDadosTokenSelecionado, vincularTokenAoId } from "./obr-sync.js";
-import { atualizarHudToken, removerHudToken } from "./token-hud.js";
+import { atualizarHudToken, removerHudToken } from "../../hud/token-hud.js";
 
 export function UI_BotaoPermissao(f, classExtra = "btn-icon-action") {
   if (f.visivelPlayer === false) {
@@ -3659,7 +4006,7 @@ import { SheetStore } from "./store.js";
 import { criarElementoCard } from "./card.js";
 import { renderFormulario } from "./form.js";
 import { iniciarOuvintesOwlbear } from "./obr-sync.js";
-import { atualizarHudToken, removerHudToken, sincronizarTodosHuds } from "./token-hud.js";
+import { atualizarHudToken, removerHudToken, sincronizarTodosHuds } from "../../hud/token-hud.js";
 import { SolariaSync } from "../../core/sync.js";
 
 export function render(container, Estado) {
@@ -4037,7 +4384,7 @@ input:focus {
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { calcularNovoStat } from "./calc.js";
 import { normalizarStats } from "./stats.js";
-import { atualizarHudToken } from "./token-hud.js";
+import { atualizarHudToken } from "../../hud/token-hud.js";
 import { SolariaSync } from "../../core/sync.js";
 
 const params = new URLSearchParams(window.location.search);
@@ -4774,293 +5121,6 @@ export const SheetStore = {
   font-weight: 700;
   color: #414868;
   user-select: none;
-}
-
-=== ARQUIVO: \painel\fichas\token-hud.js ===
-import OBR, { buildPath, buildText, buildShape, Command } from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { normalizarStats } from "./stats.js";
-
-export const METADATA_HUD_KEY = "solaria/tokenHudItem";
-export const METADATA_BTN_FICHA_KEY = "solaria/btnAbrirFicha";
-
-const ORBITA_STATS = [
-  { id: "atk", label: "ATK", cor: "#73daca", angulo: 165 },
-  { id: "pv",  label: "PV",  cor: "#f7768e", angulo: 215 },
-  { id: "pm",  label: "PM",  cor: "#7aa2f7", angulo: 270 },
-  { id: "rm",  label: "RM",  cor: "#e0af68", angulo: 325 },
-  { id: "cd",  label: "CD",  cor: "#bb9af7", angulo: 15 }
-];
-
-function formatarValorStat(id, itemStat) {
-  const cur = itemStat?.atual ?? 0;
-  const max = itemStat?.max ?? cur;
-  if (id === "pv" || id === "pm") return `${cur}/${max}`;
-  if (cur === max || !max) return String(cur);
-  return `${cur}/${max}`;
-}
-
-function criarComandosRetanguloArredondado(w, h, r) {
-  const raio = Math.min(r, w / 2, h / 2);
-  return [
-    [Command.MOVE, raio, 0],
-    [Command.LINE, w - raio, 0],
-    [Command.QUAD, w, 0, w, raio],
-    [Command.LINE, w, h - raio],
-    [Command.QUAD, w, h, w - raio, h],
-    [Command.LINE, raio, h],
-    [Command.QUAD, 0, h, 0, h - raio],
-    [Command.LINE, 0, raio],
-    [Command.QUAD, 0, 0, raio, 0],
-    [Command.CLOSE]
-  ];
-}
-
-export async function removerHudToken(tokenId, fichaId = null) {
-  if (!tokenId && !fichaId) return;
-  try {
-    const role = await OBR.player.getRole();
-    if (role !== "GM") return;
-
-    const itensCena = await OBR.scene.items.getItems();
-    const itensAntigos = itensCena.filter((item) => {
-      const isHud = item.metadata?.[METADATA_HUD_KEY] || item.metadata?.[METADATA_BTN_FICHA_KEY];
-      const matchToken = tokenId && item.attachedTo === tokenId;
-      const matchFicha = fichaId && item.metadata?.sheetId === fichaId;
-      return isHud && (matchToken || matchFicha);
-    });
-
-    if (itensAntigos.length > 0) {
-      await OBR.scene.items.deleteItems(itensAntigos.map((i) => i.id));
-    }
-  } catch (err) {
-    console.error("Erro ao remover HUD:", err);
-  }
-}
-
-// Fila assíncrona por token para impedir execuções concorrentes (evita duplicação visual)
-const filaTokens = new Map();
-
-export async function atualizarHudToken(ficha, tokenIdEspecifico = null) {
-  const tokenId = tokenIdEspecifico || ficha?.tokenId;
-  if (!tokenId || !ficha) return;
-
-  try {
-    const role = await OBR.player.getRole();
-    if (role !== "GM") return;
-  } catch (_) {
-    return;
-  }
-
-  const anterior = filaTokens.get(tokenId) || Promise.resolve();
-  const proxima = anterior
-    .catch(() => {})
-    .then(() => _desenharHudInterno(ficha, tokenId))
-    .finally(() => {
-      if (filaTokens.get(tokenId) === proxima) {
-        filaTokens.delete(tokenId);
-      }
-    });
-
-  filaTokens.set(tokenId, proxima);
-  return proxima;
-}
-
-async function _desenharHudInterno(ficha, tokenId) {
-  try {
-    await removerHudToken(tokenId, ficha.id);
-
-    const items = await OBR.scene.items.getItems([tokenId]);
-    const token = items[0];
-    if (!token) return;
-
-    let sceneDpi = 150;
-    try { sceneDpi = await OBR.grid.getDpi(); } catch (_) {}
-
-    const scaleX = Math.abs(token.scale?.x ?? 1);
-    const scaleY = Math.abs(token.scale?.y ?? 1);
-    const imgW = token.image?.width || 150;
-    const imgH = token.image?.height || 150;
-    const tokenDpi = token.grid?.dpi || 150;
-
-    const tokenWidth = (imgW / tokenDpi) * sceneDpi * scaleX;
-    const tokenHeight = (imgH / tokenDpi) * sceneDpi * scaleY;
-
-    const offsetX = token.grid?.offset?.x ?? (imgW / 2);
-    const offsetY = token.grid?.offset?.y ?? (imgH / 2);
-    
-    const centerX = token.position.x + ((imgW / 2 - offsetX) / tokenDpi) * sceneDpi * scaleX;
-    const centerY = token.position.y + ((imgH / 2 - offsetY) / tokenDpi) * sceneDpi * scaleY;
-
-    const tokenRaio = Math.min(tokenWidth, tokenHeight) / 2;
-    const tokenDiametro = tokenRaio * 2;
-
-    const badgeW = 78;
-    const badgeH = 24;
-    const cornerRadius = 8;
-    const orbitalRadius = tokenRaio + badgeH / 2 + 8;
-
-    const visivel = ficha.visivelPlayer !== false;
-    const statsNorm = normalizarStats(ficha.stats);
-    const novosItens = [];
-    const comandosArredondados = criarComandosRetanguloArredondado(badgeW, badgeH, cornerRadius);
-
-    const statsAtivosGlobais = localStorage.getItem("solaria_exibir_stats") !== "false";
-
-    if (statsAtivosGlobais) {
-      const pvStat = statsNorm.pv || { atual: 0, max: 0 };
-      const curPv = Number(pvStat.atual) || 0;
-      const maxPv = Number(pvStat.max) || curPv;
-
-      const isMorto = curPv <= 0;
-      const isCritico = !isMorto && maxPv > 0 && curPv < (maxPv * 0.10);
-
-      // 1. Círculo de Estado
-      if (isMorto || isCritico) {
-        const corAnel = isMorto ? "#e63946" : "#ff9e3b";
-        const statusRing = buildShape()
-          .shapeType("CIRCLE")
-          .width(tokenDiametro)
-          .height(tokenDiametro)
-          .position({ x: centerX, y: centerY })
-          .fillColor("#000000")
-          .fillOpacity(0)
-          .strokeColor(corAnel)
-          .strokeWidth(6)
-          .attachedTo(token.id)
-          .layer("ATTACHMENT")
-          .disableHit(true)
-          .locked(true)
-          .visible(visivel)
-          .zIndex(5)
-          .metadata({ [METADATA_HUD_KEY]: true, sheetId: ficha.id, tipo: "status-ring" })
-          .build();
-        novosItens.push(statusRing);
-      }
-
-      // 2. Caveira Centralizada
-      if (isMorto) {
-        const skullFontSize = Math.max(30, Math.round(tokenDiametro * 0.35)); 
-        const boxSize = skullFontSize * 2; 
-
-        const skullText = buildText()
-          .textType("PLAIN")
-          .plainText("💀")
-          .position({ x: Math.round(centerX - boxSize / 2), y: Math.round(centerY - boxSize / 2) })
-          .width(boxSize)
-          .height(boxSize)
-          .fontSize(skullFontSize)
-          .textAlign("CENTER")
-          .textAlignVertical("MIDDLE")
-          .attachedTo(token.id)
-          .layer("TEXT")
-          .disableHit(true)
-          .locked(true)
-          .visible(visivel)
-          .zIndex(25)
-          .metadata({ [METADATA_HUD_KEY]: true, sheetId: ficha.id, tipo: "status-morte" })
-          .build();
-        novosItens.push(skullText);
-      }
-
-      // 3. Badges (Órbita de Stats)
-      ORBITA_STATS.forEach((cfg) => {
-        const rad = (cfg.angulo * Math.PI) / 180;
-        const px = centerX + orbitalRadius * Math.cos(rad);
-        const py = centerY + orbitalRadius * Math.sin(rad);
-        const bx = Math.round(px - badgeW / 2);
-        const by = Math.round(py - badgeH / 2);
-        const textoValor = formatarValorStat(cfg.id, statsNorm[cfg.id]);
-        
-        const metaComum = { [METADATA_HUD_KEY]: true, sheetId: ficha.id, statId: cfg.id, statLabel: cfg.label, statCor: cfg.cor };
-
-        const badgePath = buildPath()
-          .commands(comandosArredondados)
-          .position({ x: bx, y: by })
-          .fillColor("#14161f")
-          .fillOpacity(0.94)
-          .strokeColor(cfg.cor)
-          .strokeWidth(2)
-          .attachedTo(token.id)
-          .layer("ATTACHMENT")
-          .disableHit(false)
-          .locked(true)
-          .visible(visivel)
-          .zIndex(10)
-          .metadata(metaComum)
-          .build();
-
-        const badgeText = buildText()
-          .textType("PLAIN")
-          .plainText(`${cfg.label} ${textoValor}`)
-          .position({ x: bx, y: by })
-          .width(badgeW)
-          .height(badgeH)
-          .fontSize(12)
-          .fontWeight(700)
-          .fillColor("#ffffff")
-          .fillOpacity(1)
-          .strokeColor("#000000")
-          .strokeWidth(0)
-          .textAlign("CENTER")
-          .textAlignVertical("MIDDLE")
-          .attachedTo(token.id)
-          .layer("TEXT")
-          .disableHit(true)
-          .locked(true)
-          .visible(visivel)
-          .zIndex(20)
-          .metadata(metaComum)
-          .build();
-
-        novosItens.push(badgePath, badgeText);
-      });
-    }
-
-    // 4. Botão Flutuante (📜)
-    const emojiSize = 30;
-    const emojiX = Math.round(centerX + tokenRaio * 0.72 - emojiSize / 2);
-    const emojiY = Math.round(centerY + tokenRaio * 0.72 - emojiSize / 2);
-
-    const btnFichaText = buildText()
-      .textType("PLAIN")
-      .plainText("📜")
-      .position({ x: emojiX, y: emojiY })
-      .width(emojiSize)
-      .height(emojiSize)
-      .fontSize(18)
-      .textAlign("CENTER")
-      .textAlignVertical("MIDDLE")
-      .attachedTo(token.id)
-      .layer("TEXT")
-      .disableHit(false)
-      .locked(true)
-      .visible(visivel)
-      .zIndex(30)
-      .metadata({
-        [METADATA_BTN_FICHA_KEY]: true,
-        sheetId: ficha.id,
-        tokenId: token.id
-      })
-      .build();
-
-    novosItens.push(btnFichaText);
-
-    if (novosItens.length > 0) {
-      await OBR.scene.items.addItems(novosItens);
-    }
-  } catch (err) {
-    console.error("Erro ao desenhar HUD:", err);
-  }
-}
-
-export async function sincronizarTodosHuds(fichas = []) {
-  try {
-    const role = await OBR.player.getRole();
-    if (role !== "GM") return;
-    for (const f of fichas) {
-      if (f.tokenId) await atualizarHudToken(f);
-    }
-  } catch (_) {}
 }
 
 === ARQUIVO: \painel\lista-padrao.js ===

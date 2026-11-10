@@ -1,7 +1,7 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { calcularNovoStat } from "./calc.js";
 import { normalizarStats } from "./stats.js";
-import { atualizarHudToken } from "./token-hud.js";
+import { atualizarHudToken } from "../../hud/token-hud.js";
 import { SolariaSync } from "../../core/sync.js";
 
 const params = new URLSearchParams(window.location.search);

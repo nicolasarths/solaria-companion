@@ -1,9 +1,6 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { METADATA_HUD_KEY, METADATA_BTN_FICHA_KEY } from "../painel/fichas/token-hud.js";
+import { METADATA_HUD_KEY, METADATA_BTN_FICHA_KEY } from "../hud/token-hud.js";
 
-/**
- * Limpa o localStorage local deste navegador
- */
 export function executarLimpezaCacheLocal(elementoStatus = null) {
   if (!window.confirm("Deseja apagar os dados locais do Solaria salvos neste navegador?")) return;
 
@@ -19,9 +16,6 @@ export function executarLimpezaCacheLocal(elementoStatus = null) {
   setTimeout(() => location.reload(), 400);
 }
 
-/**
- * Reseta os metadados da sala do Owlbear e remove HUDs do mapa (Apenas Mestre)
- */
 export async function executarResetSala(elementoStatus = null) {
   if (!window.confirm("ATENÇÃO: Deseja apagar todas as fichas, notas e combate da SALA do Owlbear? (Apenas GM)")) return;
 

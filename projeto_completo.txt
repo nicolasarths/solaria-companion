@@ -1,3 +1,955 @@
+=== ARQUIVO: \combate\combate.css ===
+:root {
+  --bg: #14161f;
+  --surface: #1a1b26;
+  --card-bg: #1e2233;
+  --border: #2f354d;
+  --accent: #7aa2f7;
+  --accent-active: #bb9af7;
+  --danger: #f7768e;
+  --success: #9ece6a;
+  --warning: #e0af68;
+  --text: #c0caf5;
+  --text-muted: #6b739c;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.combat-header {
+  background: var(--surface);
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.combat-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  color: #ffffff;
+}
+
+.round-badge {
+  background: rgba(187, 154, 247, 0.15);
+  border: 1px solid var(--accent-active);
+  color: var(--accent-active);
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-icon:hover {
+  color: var(--danger);
+  background: rgba(247, 118, 142, 0.12);
+}
+
+.combat-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #10121a;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+
+.btn-action {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-action:hover {
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.btn-danger-action {
+  color: var(--danger);
+  border-color: rgba(247, 118, 142, 0.3);
+}
+
+.btn-danger-action:hover {
+  background: rgba(247, 118, 142, 0.15);
+  border-color: var(--danger);
+}
+
+.btn-next-turn {
+  background: linear-gradient(135deg, #7aa2f7, #bb9af7);
+  color: #14161f;
+  border: none;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.btn-next-turn:hover { opacity: 0.92; }
+
+.combat-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.combat-list::-webkit-scrollbar { width: 5px; }
+.combat-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.combat-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.combat-item.is-current {
+  border-color: var(--accent-active);
+  background: #1f2335;
+  box-shadow: 0 0 10px rgba(187, 154, 247, 0.2);
+}
+
+.combat-item-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.turn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3b4261;
+  flex-shrink: 0;
+}
+
+.combat-item.is-current .turn-dot {
+  background: var(--accent-active);
+  box-shadow: 0 0 6px var(--accent-active);
+}
+
+.combat-item-name {
+  font-weight: 700;
+  font-size: 12px;
+  color: #ffffff;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.init-input {
+  width: 44px;
+  background: #10121a;
+  border: 1px solid var(--border);
+  color: var(--warning);
+  font-weight: 800;
+  font-size: 12px;
+  text-align: center;
+  border-radius: 4px;
+  padding: 2px;
+  outline: none;
+}
+
+.init-input:focus {
+  border-color: var(--warning);
+  background: #16161e;
+}
+
+/* Efeitos e Contadores */
+.effects-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding-left: 13px;
+}
+
+.effect-pill {
+  background: rgba(224, 175, 104, 0.14);
+  border: 1px solid rgba(224, 175, 104, 0.45);
+  color: #ff9e3b;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.effect-pill:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn-add-effect {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-add-effect:hover {
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+/* Mini-form Inline de Efeito (Substitui window.prompt) */
+.effect-inline-form {
+  display: none;
+  gap: 4px;
+  align-items: center;
+  padding-left: 13px;
+  margin-top: 2px;
+}
+
+.effect-inline-form.is-open {
+  display: flex;
+}
+
+.inp-ef-nome {
+  flex: 1;
+  background: #10121a;
+  border: 1px solid var(--border);
+  color: #fff;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 10px;
+  outline: none;
+}
+
+.inp-ef-turnos {
+  width: 38px;
+  background: #10121a;
+  border: 1px solid var(--border);
+  color: var(--warning);
+  border-radius: 4px;
+  padding: 3px 4px;
+  font-size: 10px;
+  text-align: center;
+  font-weight: 700;
+  outline: none;
+}
+
+.btn-ef-ok {
+  background: var(--accent);
+  color: #14161f;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Gaveta de Adição */
+.add-drawer {
+  background: #12131a;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 10px;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.add-drawer.is-open { display: flex; }
+
+.add-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.add-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.drawer-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.drawer-select, .drawer-input {
+  background: #1a1b26;
+  border: 1px solid var(--border);
+  color: #ffffff;
+  padding: 5px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  outline: none;
+}
+
+.drawer-select:focus, .drawer-input:focus { border-color: var(--accent); }
+
+.drawer-row {
+  display: flex;
+  gap: 6px;
+}
+
+.input-init-custom {
+  width: 58px;
+  text-align: center;
+}
+
+.drawer-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #414868;
+  font-size: 9px;
+  font-weight: 700;
+  margin: 2px 0;
+}
+
+.drawer-divider::before, .drawer-divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid #24283b;
+}
+
+.drawer-divider span { padding: 0 6px; }
+
+.btn-confirm-add {
+  background: var(--accent);
+  color: #14161f;
+  border: none;
+  font-weight: 700;
+  padding: 6px;
+  margin-top: 2px;
+  justify-content: center;
+}
+
+=== ARQUIVO: \combate\combate.html ===
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Combate & Iniciativa - Solaria</title>
+  <link rel="stylesheet" href="./combate.css">
+</head>
+<body>
+  <header class="combat-header">
+    <div class="combat-header-title">
+      <span class="icon">⚔️</span>
+      <span class="title">Iniciativa</span>
+      <span id="round-badge" class="round-badge">Turno 1</span>
+    </div>
+    <div class="combat-header-actions">
+      <button type="button" id="btn-fechar-combate" class="btn-icon" title="Fechar painel">✕</button>
+    </div>
+  </header>
+
+  <nav class="combat-toolbar">
+    <button type="button" id="btn-toggle-add" class="btn-action">+ Participante</button>
+    <button type="button" id="btn-limpar-lista" class="btn-action btn-danger-action" title="Zerar lista de combate">Zerar</button>
+    <button type="button" id="btn-proximo-turno" class="btn-action btn-next-turn" title="Avançar para o próximo na fila">Próximo ➔</button>
+  </nav>
+
+  <!-- Gaveta de Adição de Participantes -->
+  <div id="add-drawer" class="add-drawer">
+    <div class="add-drawer-header">
+      <span>Adicionar Participante</span>
+      <button type="button" id="btn-fechar-drawer" class="btn-icon">✕</button>
+    </div>
+    <div class="add-drawer-body">
+      <label class="drawer-label">A partir de ficha existente:</label>
+      <select id="sel-ficha-existente" class="drawer-select">
+        <option value="">-- Selecione uma Ficha --</option>
+      </select>
+
+      <div class="drawer-divider"><span>OU</span></div>
+
+      <label class="drawer-label">Personagem Personalizado:</label>
+      <div class="drawer-row">
+        <input type="text" id="inp-custom-nome" class="drawer-input" style="flex:1;" placeholder="Nome do personagem...">
+        <input type="number" id="inp-custom-init" class="drawer-input input-init-custom" placeholder="Inic">
+      </div>
+
+      <button type="button" id="btn-confirmar-add" class="btn-action btn-confirm-add">+ Adicionar à Fila</button>
+    </div>
+  </div>
+
+  <!-- Lista de Iniciativa -->
+  <main id="combat-list-container" class="combat-list"></main>
+
+  <script type="module" src="./combate.js"></script>
+</body>
+</html>
+
+=== ARQUIVO: \combate\combate.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { CombatStore, SYNC_KEY } from "./store.js";
+import { renderizarCombate, popularSelectFichas } from "./ui.js";
+
+OBR.onReady(async () => {
+  const listContainer = document.getElementById("combat-list-container");
+  const atualizarTela = () => renderizarCombate(listContainer, CombatStore);
+
+  CombatStore.registrarCallback(atualizarTela);
+  CombatStore.carregar();
+
+  // 1. Puxa estado inicial da sala
+  try {
+    const meta = await OBR.room.getMetadata();
+    if (meta?.[SYNC_KEY]) {
+      CombatStore.mesclarRemoto(meta[SYNC_KEY]);
+    }
+  } catch (_) {}
+
+  // 2. Ouve mudanças de Room Metadata e Broadcast em tempo real
+  OBR.room.onMetadataChange((meta) => {
+    if (meta?.[SYNC_KEY]) {
+      CombatStore.mesclarRemoto(meta[SYNC_KEY]);
+    }
+  });
+
+  OBR.broadcast.onMessage("solaria/combate-sync", (e) => {
+    if (e.data) {
+      CombatStore.mesclarRemoto(e.data);
+    }
+  });
+
+  // 3. Controles Principais
+  document.getElementById("btn-proximo-turno").addEventListener("click", () => {
+    CombatStore.avancarTurno();
+  });
+
+  document.getElementById("btn-fechar-combate").addEventListener("click", async () => {
+    try {
+      await OBR.broadcast.sendMessage("solaria/combate-fechado", true, { destination: "LOCAL" });
+    } catch (_) {}
+    await OBR.popover.close("solaria-painel-combate");
+  });
+
+  document.getElementById("btn-limpar-lista").addEventListener("click", () => {
+    if (window.confirm("Deseja zerar a lista de iniciativa e reiniciar no Turno 1?")) {
+      CombatStore.limpar();
+    }
+  });
+
+  // 4. Gaveta de Adição
+  const drawer = document.getElementById("add-drawer");
+  const selFicha = document.getElementById("sel-ficha-existente");
+  const inpNome = document.getElementById("inp-custom-nome");
+  const inpInit = document.getElementById("inp-custom-init");
+
+  document.getElementById("btn-toggle-add").addEventListener("click", async () => {
+    const abriu = drawer.classList.toggle("is-open");
+    if (abriu) {
+      await popularSelectFichas(selFicha, OBR);
+    }
+  });
+
+  document.getElementById("btn-fechar-drawer").addEventListener("click", () => {
+    drawer.classList.remove("is-open");
+  });
+
+  document.getElementById("btn-confirmar-add").addEventListener("click", () => {
+    let nome = inpNome.value.trim();
+    let init = parseInt(inpInit.value, 10);
+    let fichaId = null;
+
+    if (selFicha.value) {
+      try {
+        const f = JSON.parse(selFicha.value);
+        if (!nome) nome = f.nome;
+        if (isNaN(init)) init = f.iniciativa;
+        fichaId = f.id;
+      } catch (_) {}
+    }
+
+    if (!nome) {
+      inpNome.focus();
+      return;
+    }
+
+    if (isNaN(init)) {
+      init = Math.floor(Math.random() * 20) + 1;
+    }
+
+    CombatStore.adicionarParticipante(nome, init, fichaId);
+    drawer.classList.remove("is-open");
+    inpNome.value = "";
+    inpInit.value = "";
+    selFicha.value = "";
+  });
+
+  atualizarTela();
+});
+
+=== ARQUIVO: \combate\store.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+
+export const SYNC_KEY = "solaria/sync_combate";
+const STORAGE_KEY = "solaria_combate_estado";
+
+export const CombatStore = {
+  rodada: 1,
+  ativoIndex: 0,
+  participantes: [],
+  onChangeCallback: null,
+
+  registrarCallback(cb) {
+    this.onChangeCallback = cb;
+  },
+
+  notificarUI() {
+    if (typeof this.onChangeCallback === "function") {
+      this.onChangeCallback();
+    }
+  },
+
+  carregar() {
+    try {
+      const salvo = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if (salvo && Array.isArray(salvo.participantes)) {
+        this.rodada = salvo.rodada || 1;
+        this.ativoIndex = salvo.ativoIndex || 0;
+        this.participantes = salvo.participantes;
+      }
+    } catch (_) {}
+    return this.obterPayload();
+  },
+
+  obterPayload() {
+    return {
+      rodada: this.rodada,
+      ativoIndex: this.ativoIndex,
+      participantes: this.participantes,
+      atualizadoEm: Date.now()
+    };
+  },
+
+  salvarLocal() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.obterPayload()));
+  },
+
+  async sincronizarRede() {
+    this.salvarLocal();
+    this.notificarUI();
+    const payload = this.obterPayload();
+    try {
+      await OBR.room.setMetadata({ [SYNC_KEY]: payload });
+      await OBR.broadcast.sendMessage("solaria/combate-sync", payload);
+    } catch (err) {
+      console.error("Erro ao sincronizar combate:", err);
+    }
+  },
+
+  mesclarRemoto(dados) {
+    if (!dados || !Array.isArray(dados.participantes)) return;
+    this.rodada = dados.rodada || 1;
+    this.ativoIndex = dados.ativoIndex || 0;
+    this.participantes = dados.participantes;
+    this.salvarLocal();
+    this.notificarUI();
+  },
+
+  ordenar() {
+    const idAtivo = this.participantes[this.ativoIndex]?.id;
+    this.participantes.sort((a, b) => (Number(b.iniciativa) || 0) - (Number(a.iniciativa) || 0));
+
+    if (idAtivo) {
+      const novoIdx = this.participantes.findIndex(p => p.id === idAtivo);
+      this.ativoIndex = novoIdx >= 0 ? novoIdx : 0;
+    } else {
+      this.ativoIndex = 0;
+    }
+  },
+
+  adicionarParticipante(nome, iniciativa, fichaId = null) {
+    const novo = {
+      id: "part_" + Date.now() + Math.random().toString(36).substring(2, 5),
+      nome: nome.trim(),
+      iniciativa: Number(iniciativa) || 10,
+      fichaId: fichaId || null,
+      efeitos: []
+    };
+    this.participantes.push(novo);
+    this.ordenar();
+    this.sincronizarRede();
+  },
+
+  removerParticipante(id) {
+    const idxRemover = this.participantes.findIndex(p => p.id === id);
+    if (idxRemover < 0) return;
+
+    // Preserva corretamente de quem é a vez mesmo se remover alguém antes dele na fila
+    if (idxRemover < this.ativoIndex) {
+      this.ativoIndex--;
+    }
+
+    this.participantes.splice(idxRemover, 1);
+
+    if (this.ativoIndex >= this.participantes.length) {
+      this.ativoIndex = 0;
+    }
+    this.sincronizarRede();
+  },
+
+  atualizarIniciativa(id, novaIniciativa) {
+    const p = this.participantes.find(item => item.id === id);
+    if (p) {
+      p.iniciativa = Number(novaIniciativa) || 0;
+      this.ordenar();
+      this.sincronizarRede();
+    }
+  },
+
+  avancarTurno() {
+    if (!this.participantes.length) return;
+
+    this.ativoIndex++;
+    if (this.ativoIndex >= this.participantes.length) {
+      this.ativoIndex = 0;
+      this.rodada++;
+    }
+
+    // Ao iniciar o turno do participante, reduz em 1 os contadores de efeitos dele
+    const atual = this.participantes[this.ativoIndex];
+    if (atual && Array.isArray(atual.efeitos)) {
+      atual.efeitos = atual.efeitos
+        .map(ef => ({ ...ef, duracao: Number(ef.duracao) - 1 }))
+        .filter(ef => ef.duracao > 0);
+    }
+
+    this.sincronizarRede();
+  },
+
+  adicionarEfeito(participanteId, nomeEfeito, duracaoTurnos) {
+    const p = this.participantes.find(item => item.id === participanteId);
+    if (p && nomeEfeito.trim()) {
+      if (!Array.isArray(p.efeitos)) p.efeitos = [];
+      p.efeitos.push({
+        id: "ef_" + Date.now() + Math.random().toString(36).substring(2, 4),
+        nome: nomeEfeito.trim(),
+        duracao: Math.max(1, parseInt(duracaoTurnos, 10) || 1)
+      });
+      this.sincronizarRede();
+    }
+  },
+
+  removerEfeito(participanteId, efeitoId) {
+    const p = this.participantes.find(item => item.id === participanteId);
+    if (p && Array.isArray(p.efeitos)) {
+      p.efeitos = p.efeitos.filter(ef => ef.id !== efeitoId);
+      this.sincronizarRede();
+    }
+  },
+
+  limpar() {
+    this.rodada = 1;
+    this.ativoIndex = 0;
+    this.participantes = [];
+    this.sincronizarRede();
+  }
+};
+
+=== ARQUIVO: \combate\ui.js ===
+export function renderizarCombate(container, store) {
+  const badgeRodada = document.getElementById("round-badge");
+  if (badgeRodada) {
+    badgeRodada.textContent = `Turno ${store.rodada}`;
+  }
+
+  // Se o usuário estiver digitando num input de iniciativa, evita destruir o DOM sob os dedos dele
+  const elAtivo = document.activeElement;
+  if (elAtivo && elAtivo.classList.contains("init-input")) {
+    return;
+  }
+
+  container.innerHTML = "";
+
+  if (!store.participantes.length) {
+    container.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 28px 12px; font-size: 11px; line-height: 1.5;">
+        Nenhum participante no combate.<br>Clique em <b>+ Participante</b> para iniciar.
+      </div>
+    `;
+    return;
+  }
+
+  store.participantes.forEach((p, idx) => {
+    const isCurrent = idx === store.ativoIndex;
+    const itemCard = document.createElement("div");
+    itemCard.className = `combat-item ${isCurrent ? "is-current" : ""}`;
+
+    const efeitosHtml = (p.efeitos || []).map(ef => `
+      <span class="effect-pill" data-pid="${p.id}" data-efid="${ef.id}" title="Clique para remover este efeito">
+        ${ef.nome} (${ef.duracao}t)
+        <span style="font-size:10px; margin-left:3px; opacity:0.8;">✕</span>
+      </span>
+    `).join("");
+
+    itemCard.innerHTML = `
+      <div class="combat-item-main">
+        <span class="turn-dot" title="${isCurrent ? "Vez deste personagem" : ""}"></span>
+        <span class="combat-item-name" title="${p.nome}">${p.nome}</span>
+        <input type="number" class="init-input" data-id="${p.id}" value="${p.iniciativa}" title="Iniciativa (clique para alterar e tecle Enter)">
+        <button type="button" class="btn-icon btn-del-part" data-id="${p.id}" title="Remover da lista">✕</button>
+      </div>
+      <div class="effects-row">
+        ${efeitosHtml}
+        <button type="button" class="btn-add-effect" data-id="${p.id}">+ Efeito</button>
+      </div>
+      <div class="effect-inline-form" id="ef-form-${p.id}">
+        <input type="text" class="inp-ef-nome" placeholder="Ex: Envenenado...">
+        <input type="number" class="inp-ef-turnos" value="3" min="1" title="Turnos">
+        <button type="button" class="btn-ef-ok">OK</button>
+      </div>
+    `;
+
+    // Edição manual de iniciativa (Salva no Enter ou ao sair do campo)
+    const inpInit = itemCard.querySelector(".init-input");
+    inpInit.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") inpInit.blur();
+    });
+    inpInit.addEventListener("blur", (e) => {
+      const novoVal = Number(e.target.value);
+      if (novoVal !== Number(p.iniciativa)) {
+        store.atualizarIniciativa(p.id, novoVal);
+      }
+    });
+
+    // Remover participante
+    itemCard.querySelector(".btn-del-part").addEventListener("click", () => {
+      store.removerParticipante(p.id);
+    });
+
+    // Abrir mini-form inline de efeito (sem usar window.prompt)
+    const btnAddEf = itemCard.querySelector(".btn-add-effect");
+    const formEf = itemCard.querySelector(`#ef-form-${p.id}`);
+    const inpEfNome = formEf.querySelector(".inp-ef-nome");
+    const inpEfTurnos = formEf.querySelector(".inp-ef-turnos");
+    const btnEfOk = formEf.querySelector(".btn-ef-ok");
+
+    btnAddEf.addEventListener("click", () => {
+      const aberto = formEf.classList.toggle("is-open");
+      if (aberto) inpEfNome.focus();
+    });
+
+    const confirmarEfeito = () => {
+      const nome = inpEfNome.value.trim();
+      const turnos = inpEfTurnos.value;
+      if (nome) {
+        store.adicionarEfeito(p.id, nome, turnos);
+      }
+    };
+
+    btnEfOk.addEventListener("click", confirmarEfeito);
+    [inpEfNome, inpEfTurnos].forEach(inp => {
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") confirmarEfeito();
+        if (e.key === "Escape") formEf.classList.remove("is-open");
+      });
+    });
+
+    // Remover efeito individual
+    itemCard.querySelectorAll(".effect-pill").forEach(el => {
+      el.addEventListener("click", () => {
+        store.removerEfeito(el.dataset.pid, el.dataset.efid);
+      });
+    });
+
+    container.appendChild(itemCard);
+  });
+}
+
+export async function popularSelectFichas(selectElement, OBR) {
+  if (!selectElement) return;
+  selectElement.innerHTML = `<option value="">-- Selecione uma Ficha --</option>`;
+
+  try {
+    let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const role = await OBR.player.getRole();
+
+    // Se o jogador ainda não tinha aberto o painel, busca direto dos metadados da sala
+    if (role !== "GM" && !fichas.length) {
+      const meta = await OBR.room.getMetadata();
+      if (Array.isArray(meta?.["solaria/sync_fichas"])) {
+        fichas = meta["solaria/sync_fichas"];
+      }
+    }
+
+    const visiveis = fichas.filter(f => role === "GM" || f.visivelPlayer !== false);
+
+    visiveis.forEach(f => {
+      const opt = document.createElement("option");
+      opt.value = JSON.stringify({
+        id: f.id,
+        nome: f.nome,
+        iniciativa: Math.floor(Math.random() * 20) + 1
+      });
+      opt.textContent = `${f.nome} (${f.tag || "NPC"})`;
+      selectElement.appendChild(opt);
+    });
+  } catch (_) {}
+}
+
+=== ARQUIVO: \core\background-sync.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { SolariaSync } from "./sync.js";
+import { atualizarHudToken, removerHudToken } from "../painel/fichas/token-hud.js";
+import { WindowManager } from "./windows.js";
+
+export async function iniciarSincronizacaoBackground() {
+  const currentRole = await OBR.player.getRole();
+
+  // Escuta contínua de metadados da sala (alimenta jogadores mesmo com painel fechado)
+  SolariaSync.iniciarOuvinteSala({
+    onFichasRecebidas: (fichasPublicas) => {
+      if (currentRole !== "GM") {
+        localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichasPublicas));
+      }
+    },
+    onNotasRecebidas: (notasPublicas) => {
+      if (currentRole !== "GM") {
+        localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notasPublicas));
+      }
+    }
+  });
+
+  // Atualiza estado do botão de combate quando a janela é fechada pelo "X" interno
+  OBR.broadcast.onMessage("solaria/combate-fechado", () => {
+    WindowManager.combateAberto = false;
+  });
+
+  // Broadcasts de Fichas
+  OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
+    const fichaAtualizada = e.data;
+    if (!fichaAtualizada || !fichaAtualizada.id) return;
+
+    let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const idx = fichas.findIndex(f => f.id === fichaAtualizada.id);
+    if (idx >= 0) {
+      fichas[idx] = fichaAtualizada;
+    } else {
+      fichas.unshift(fichaAtualizada);
+    }
+    localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
+
+    if (currentRole === "GM") {
+      await atualizarHudToken(fichaAtualizada);
+      await SolariaSync.sincronizarFichasComSala(fichas);
+    }
+  });
+
+  OBR.broadcast.onMessage("solaria/ficha-excluida", async (e) => {
+    const idExcluir = e.data;
+    if (!idExcluir) return;
+
+    let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const f = fichas.find(item => item.id === idExcluir);
+    if (f?.tokenId) await removerHudToken(f.tokenId, idExcluir);
+    fichas = fichas.filter(item => item.id !== idExcluir);
+    localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
+
+    if (currentRole === "GM") {
+      await SolariaSync.sincronizarFichasComSala(fichas);
+    }
+  });
+
+  OBR.broadcast.onMessage("solaria/ficha-stat-atualizado", async (e) => {
+    const { sheetId } = e.data || {};
+    if (!sheetId) return;
+    const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+    const f = fichas.find(item => item.id === sheetId);
+    if (currentRole === "GM" && f) {
+      await atualizarHudToken(f);
+      await SolariaSync.sincronizarFichasComSala(fichas);
+    }
+  });
+
+  // Broadcasts de Anotações
+  OBR.broadcast.onMessage("solaria/nota-sync", async (e) => {
+    const notaAtualizada = e.data;
+    if (!notaAtualizada || !notaAtualizada.id) return;
+
+    let notas = JSON.parse(localStorage.getItem("solaria_notas_multiplas") || "[]");
+    const idx = notas.findIndex(n => n.id === notaAtualizada.id);
+    if (idx >= 0) {
+      notas[idx] = notaAtualizada;
+    } else {
+      notas.unshift(notaAtualizada);
+    }
+    localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
+
+    if (currentRole === "GM") {
+      await SolariaSync.sincronizarNotasComSala(notas);
+    }
+  });
+
+  OBR.broadcast.onMessage("solaria/nota-excluida", async (e) => {
+    const idExcluir = e.data;
+    if (!idExcluir) return;
+
+    let notas = JSON.parse(localStorage.getItem("solaria_notas_multiplas") || "[]");
+    notas = notas.filter(n => n.id !== idExcluir);
+    localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
+
+    if (currentRole === "GM") {
+      await SolariaSync.sincronizarNotasComSala(notas);
+    }
+  });
+}
+
 === ARQUIVO: \core\cloud.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { SolariaSync } from "./sync.js";
@@ -175,6 +1127,117 @@ export function configurarInterfaceNuvem() {
   });
 }
 
+=== ARQUIVO: \core\config.js ===
+/**
+ * Configurações Centrais de Ambiente e Roteamento - Solaria Companion
+ */
+export const IS_LOCAL = 
+  window.location.hostname === "localhost" || 
+  window.location.hostname === "127.0.0.1";
+
+export const GITHUB_PAGES_URL = "https://nicolasarths.github.io/solaria-companion";
+
+// Em ambiente local, caminhos relativos ("") são usados; em produção, a URL canônica do GitHub Pages
+export const BASE_URL = IS_LOCAL ? "" : GITHUB_PAGES_URL;
+
+/**
+ * Utilitário para resolver rotas absolutas seguras tanto no localhost quanto no Pages
+ * @param {string} path - Caminho relativo partindo da raiz (ex: "/combate/combate.html")
+ * @returns {string} URL completa ou caminho relativo correto
+ */
+export function resolverRota(path) {
+  const limpo = path.startsWith("/") ? path : `/${path}`;
+  return `${BASE_URL}${limpo}`;
+}
+
+=== ARQUIVO: \core\map-events.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { WindowManager } from "./windows.js";
+import { 
+  sincronizarTodosHuds, 
+  METADATA_HUD_KEY, 
+  METADATA_BTN_FICHA_KEY 
+} from "../painel/fichas/token-hud.js";
+import { resolverRota } from "./config.js";
+
+async function inicializarHudsAoCarregarCena() {
+  try {
+    const role = await OBR.player.getRole();
+    if (role !== "GM") return;
+
+    const res = await fetch(resolverRota("/modulos.json"));
+    const modulos = await res.json();
+    let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
+
+    if (modulos.fichas?.registros) {
+      modulos.fichas.registros.forEach(f => {
+        if (!fichas.some(item => item.id === f.id)) {
+          fichas.push(f);
+        }
+      });
+    }
+
+    await sincronizarTodosHuds(fichas);
+  } catch (err) {
+    console.error("Erro ao sincronizar HUDs iniciais:", err);
+  }
+}
+
+export function iniciarEventosDoMapa() {
+  // Inicialização de HUDs ao preparar a cena
+  OBR.scene.isReady().then((ready) => {
+    if (ready) inicializarHudsAoCarregarCena();
+  });
+
+  OBR.scene.onReadyChange((ready) => {
+    if (ready) inicializarHudsAoCarregarCena();
+  });
+
+  // Escuta de clique em itens/tokens no mapa
+  OBR.player.onChange(async (player) => {
+    const selection = player.selection;
+    if (!selection || selection.length !== 1) return;
+
+    try {
+      const items = await OBR.scene.items.getItems(selection);
+      const item = items[0];
+      if (!item) return;
+
+      // 1. Clique no botão de pergaminho (Abrir/Focar Ficha)
+      if (item.metadata?.[METADATA_BTN_FICHA_KEY]) {
+        await OBR.player.deselect();
+        await WindowManager.abrirOuFocarPainel();
+        const sheetId = item.metadata.sheetId;
+
+        localStorage.setItem("solaria_acao_pendente", JSON.stringify({
+          tipo: "FOCAR_FICHA",
+          sheetId: sheetId,
+          timestamp: Date.now()
+        }));
+
+        try {
+          await OBR.broadcast.sendMessage("solaria/focar-ficha-token", { sheetId });
+        } catch (_) {}
+        return;
+      }
+
+      // 2. Clique nos badges orbitais de stats (Abrir mini-editor Quick Stat)
+      if (item.metadata?.[METADATA_HUD_KEY]) {
+        await OBR.player.deselect();
+        const { sheetId, statId, statLabel, statCor } = item.metadata;
+
+        await WindowManager.abrirQuickStat({
+          sheetId,
+          statId,
+          statLabel,
+          statCor,
+          anchorElementId: item.id
+        });
+      }
+    } catch (_) {}
+  });
+}
+
 === ARQUIVO: \core\sync.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 
@@ -244,184 +1307,112 @@ export const SolariaSync = {
   }
 };
 
+=== ARQUIVO: \core\windows.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { resolverRota } from "./config.js";
+
+export const WINDOW_IDS = {
+  PAINEL: "solaria-painel-inferior-direito",
+  COMBATE: "solaria-painel-combate",
+  QUICK_STAT: "solaria-quick-stat-editor"
+};
+
+export const WindowManager = {
+  painelAberto: false,
+  combateAberto: false,
+
+  async abrirOuFocarPainel() {
+    if (!this.painelAberto) {
+      const salvo = JSON.parse(localStorage.getItem("solaria_painel_dimensoes") || "{}");
+      const width = salvo.width || 480;
+      const height = salvo.height || 680;
+
+      await OBR.popover.open({
+        id: WINDOW_IDS.PAINEL,
+        url: resolverRota("/painel/painel.html"),
+        height: height,
+        width: width,
+        anchorOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
+        transformOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
+        disableClickAway: true
+      });
+      this.painelAberto = true;
+    }
+  },
+
+  async fecharPainel() {
+    if (this.painelAberto) {
+      await OBR.popover.close(WINDOW_IDS.PAINEL);
+      this.painelAberto = false;
+    }
+  },
+
+  async togglePainel() {
+    if (!this.painelAberto) {
+      await this.abrirOuFocarPainel();
+    } else {
+      await this.fecharPainel();
+    }
+  },
+
+  async abrirCombate() {
+    await OBR.popover.open({
+      id: WINDOW_IDS.COMBATE,
+      url: resolverRota("/combate/combate.html"),
+      height: 400,
+      width: 310,
+      anchorOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
+      transformOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
+      disableClickAway: true
+    });
+    this.combateAberto = true;
+  },
+
+  async fecharCombate() {
+    await OBR.popover.close(WINDOW_IDS.COMBATE);
+    this.combateAberto = false;
+  },
+
+  async toggleCombate() {
+    if (!this.combateAberto) {
+      await this.abrirCombate();
+    } else {
+      await this.fecharCombate();
+    }
+  },
+
+  async abrirQuickStat({ sheetId, statId, statLabel, statCor, anchorElementId }) {
+    const query = new URLSearchParams({
+      sheetId,
+      statId,
+      label: statLabel || statId.toUpperCase(),
+      cor: statCor || "#7aa2f7"
+    }).toString();
+
+    await OBR.popover.open({
+      id: WINDOW_IDS.QUICK_STAT,
+      url: resolverRota(`/painel/fichas/quick-stat.html?${query}`),
+      width: 210,
+      height: 115,
+      anchorElementId: anchorElementId,
+      anchorOrigin: { horizontal: "CENTER", vertical: "TOP" },
+      transformOrigin: { horizontal: "CENTER", vertical: "BOTTOM" }
+    });
+  }
+};
+
 === ARQUIVO: \index.html ===
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <style>
-    body {
-      background-color: #1a1b26;
-      color: #c0caf5;
-      font-family: system-ui, -apple-system, sans-serif;
-      padding: 16px;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      min-height: 100vh;
-      box-sizing: border-box;
-      overflow-y: auto;
-    }
-    
-    .btn-main {
-      background-color: #9d7cd8;
-      color: #ffffff;
-      border: none;
-      padding: 12px;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 14px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      width: 100%;
-    }
-    .btn-main:hover { background-color: #b193e6; }
-    
-    .btn-danger {
-      background-color: #f7768e;
-      color: #ffffff;
-      border: none;
-      padding: 12px;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 14px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      width: 100%;
-      margin-top: auto;
-    }
-    .btn-danger:hover { background-color: #f55373; }
-
-    .config-section {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      background: #24283b;
-      padding: 12px;
-      border-radius: 8px;
-    }
-
-    .config-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .section-title {
-      font-size: 11px;
-      text-transform: uppercase;
-      font-weight: 700;
-      color: #7982a9;
-      letter-spacing: 0.5px;
-    }
-
-    .cloud-field {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-
-    .cloud-field label {
-      font-size: 11px;
-      color: #a9b1d6;
-      font-weight: 600;
-    }
-
-    .cloud-input {
-      background: #16161e;
-      border: 1px solid #3b4261;
-      color: #c0caf5;
-      padding: 6px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-
-    .cloud-input:focus {
-      border-color: #7aa2f7;
-    }
-
-    .cloud-btn-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 4px;
-    }
-
-    .btn-cloud {
-      flex: 1;
-      padding: 8px 6px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: opacity 0.2s, background-color 0.2s;
-      border: none;
-    }
-
-    .btn-cloud-save {
-      background: #7aa2f7;
-      color: #14161f;
-    }
-
-    .btn-cloud-save:hover {
-      opacity: 0.9;
-    }
-
-    .btn-cloud-load {
-      background: #1f2335;
-      color: #c0caf5;
-      border: 1px solid #3b4261;
-    }
-
-    .btn-cloud-load:hover {
-      background: #2f354d;
-    }
-
-    .cloud-status {
-      font-size: 10px;
-      text-align: center;
-      min-height: 14px;
-      color: #7982a9;
-    }
-
-    /* Estilo do Toggle Switch */
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 36px;
-      height: 20px;
-    }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #414868;
-      transition: .3s;
-      border-radius: 20px;
-    }
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 14px;
-      width: 14px;
-      left: 3px;
-      bottom: 3px;
-      background-color: white;
-      transition: .3s;
-      border-radius: 50%;
-    }
-    input:checked + .slider { background-color: #73daca; }
-    input:checked + .slider:before { transform: translateX(16px); }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solaria Companion</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 
-  <button id="toggle-painel" class="btn-main">Abrir / Fechar Painel</button>
+  <button type="button" id="toggle-painel" class="btn-main">Abrir / Fechar Painel</button>
 
   <div class="config-section">
     <div class="config-row">
@@ -478,14 +1469,15 @@ export const SolariaSync = {
     <div id="cache-status" class="cloud-status"></div>
   </div>
 
-  <button id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>
+  <button type="button" id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>
 
-  <script type="module" src="./main.js"></script>
+  <script type="module" src="./main.js?v=2026.11.9-2222"></script>
 </body>
 </html>
 
 === ARQUIVO: \main.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { BASE_URL, resolverRota } from "./core/config.js";
 import { registrarMenusContexto } from "./menu/options.js";
 import { 
   sincronizarTodosHuds, 
@@ -495,13 +1487,14 @@ import {
   METADATA_BTN_FICHA_KEY 
 } from "./painel/fichas/token-hud.js";
 import { configurarInterfaceNuvem } from "./core/cloud.js";
+import { SolariaSync } from "./core/sync.js";
 
 const ID_PAINEL = "solaria-painel-inferior-direito";
+const ID_COMBATE = "solaria-painel-combate";
 const ID_QUICK_STAT = "solaria-quick-stat-editor";
-let aberto = false;
 
-const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-const BASE_URL = isLocal ? "" : "https://nicolasarths.github.io/solaria-companion";
+let aberto = false;
+let combateAberto = false;
 
 export async function abrirOuFocarPainel() {
   if (!aberto) {
@@ -511,7 +1504,7 @@ export async function abrirOuFocarPainel() {
 
     await OBR.popover.open({
       id: ID_PAINEL,
-      url: BASE_URL + "/painel/painel.html",
+      url: resolverRota("/painel/painel.html"),
       height: height,
       width: width,
       anchorOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
@@ -522,12 +1515,30 @@ export async function abrirOuFocarPainel() {
   }
 }
 
+export async function togglePainelCombate() {
+  if (!combateAberto) {
+    await OBR.popover.open({
+      id: ID_COMBATE,
+      url: resolverRota("/combate/combate.html"),
+      height: 400,
+      width: 310,
+      anchorOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
+      transformOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
+      disableClickAway: true
+    });
+    combateAberto = true;
+  } else {
+    await OBR.popover.close(ID_COMBATE);
+    combateAberto = false;
+  }
+}
+
 async function inicializarHudsAoCarregarCena() {
   try {
     const role = await OBR.player.getRole();
     if (role !== "GM") return;
 
-    const res = await fetch(BASE_URL + "/modulos.json");
+    const res = await fetch(resolverRota("/modulos.json"));
     const modulos = await res.json();
     let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
 
@@ -546,6 +1557,26 @@ async function inicializarHudsAoCarregarCena() {
 }
 
 OBR.onReady(async () => {
+  const currentRole = await OBR.player.getRole();
+
+  // Mantém o armazenamento de fichas e notas sincronizado com a sala em segundo plano
+  SolariaSync.iniciarOuvinteSala({
+    onFichasRecebidas: (fichasPublicas) => {
+      if (currentRole !== "GM") {
+        localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichasPublicas));
+      }
+    },
+    onNotasRecebidas: (notasPublicas) => {
+      if (currentRole !== "GM") {
+        localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notasPublicas));
+      }
+    }
+  });
+
+  OBR.broadcast.onMessage("solaria/combate-fechado", () => {
+    combateAberto = false;
+  });
+
   const btn = document.getElementById("toggle-painel");
   if (btn) {
     btn.addEventListener("click", async () => {
@@ -578,8 +1609,8 @@ OBR.onReady(async () => {
 
   const btnCombate = document.getElementById("btn-combate");
   if (btnCombate) {
-    btnCombate.addEventListener("click", () => {
-      OBR.notification.show("Módulo de combate será implementado em breve! ⚔️");
+    btnCombate.addEventListener("click", async () => {
+      await togglePainelCombate();
     });
   }
 
@@ -610,7 +1641,7 @@ OBR.onReady(async () => {
   const btnLimparSala = document.getElementById("btn-limpar-sala");
   if (btnLimparSala) {
     btnLimparSala.addEventListener("click", async () => {
-      const confirmou = window.confirm("Deseja apagar todas as fichas e notas da SALA do Owlbear Rodeo? (Apenas Mestre)");
+      const confirmou = window.confirm("Deseja apagar todas as fichas, notas e combate da SALA do Owlbear Rodeo? (Apenas Mestre)");
       if (!confirmou) return;
 
       try {
@@ -622,11 +1653,12 @@ OBR.onReady(async () => {
 
         await OBR.room.setMetadata({
           "solaria/sync_fichas": [],
-          "solaria/sync_notas": []
+          "solaria/sync_notas": [],
+          "solaria/sync_combate": { rodada: 1, ativoIndex: 0, participantes: [] }
         });
 
         const itens = await OBR.scene.items.getItems();
-        const huds = itens.filter(i => i.metadata?.[METADATA_HUD_KEY] || i.metadata?.[METADATA_BTN_FICHA_KEY]);
+        const huds = itens.filter(i => i.metadata?.[METADATA_HUD_KEY] || i.metadata?.[METADATA_BTN_FICHA_KEY] || i.id.startsWith("solaria_hud_"));
         if (huds.length > 0) {
           await OBR.scene.items.deleteItems(huds.map(h => h.id));
         }
@@ -662,7 +1694,7 @@ OBR.onReady(async () => {
     }
   });
 
-  // Ouvintes Globais em Segundo Plano
+  // Ouvintes de Sincronização em Segundo Plano
   OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
     const fichaAtualizada = e.data;
     if (!fichaAtualizada || !fichaAtualizada.id) return;
@@ -675,7 +1707,12 @@ OBR.onReady(async () => {
       fichas.unshift(fichaAtualizada);
     }
     localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
-    await atualizarHudToken(fichaAtualizada);
+
+    const role = await OBR.player.getRole();
+    if (role === "GM") {
+      await atualizarHudToken(fichaAtualizada);
+      await SolariaSync.sincronizarFichasComSala(fichas);
+    }
   });
 
   OBR.broadcast.onMessage("solaria/ficha-excluida", async (e) => {
@@ -687,6 +1724,11 @@ OBR.onReady(async () => {
     if (f?.tokenId) await removerHudToken(f.tokenId, idExcluir);
     fichas = fichas.filter(item => item.id !== idExcluir);
     localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
+
+    const role = await OBR.player.getRole();
+    if (role === "GM") {
+      await SolariaSync.sincronizarFichasComSala(fichas);
+    }
   });
 
   OBR.broadcast.onMessage("solaria/ficha-stat-atualizado", async (e) => {
@@ -694,10 +1736,14 @@ OBR.onReady(async () => {
     if (!sheetId) return;
     const fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
     const f = fichas.find(item => item.id === sheetId);
-    if (f) await atualizarHudToken(f);
+    const role = await OBR.player.getRole();
+    if (role === "GM" && f) {
+      await atualizarHudToken(f);
+      await SolariaSync.sincronizarFichasComSala(fichas);
+    }
   });
 
-  OBR.broadcast.onMessage("solaria/nota-sync", (e) => {
+  OBR.broadcast.onMessage("solaria/nota-sync", async (e) => {
     const notaAtualizada = e.data;
     if (!notaAtualizada || !notaAtualizada.id) return;
 
@@ -709,18 +1755,28 @@ OBR.onReady(async () => {
       notas.unshift(notaAtualizada);
     }
     localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
+
+    const role = await OBR.player.getRole();
+    if (role === "GM") {
+      await SolariaSync.sincronizarNotasComSala(notas);
+    }
   });
 
-  OBR.broadcast.onMessage("solaria/nota-excluida", (e) => {
+  OBR.broadcast.onMessage("solaria/nota-excluida", async (e) => {
     const idExcluir = e.data;
     if (!idExcluir) return;
 
     let notas = JSON.parse(localStorage.getItem("solaria_notas_multiplas") || "[]");
     notas = notas.filter(n => n.id !== idExcluir);
     localStorage.setItem("solaria_notas_multiplas", JSON.stringify(notas));
+
+    const role = await OBR.player.getRole();
+    if (role === "GM") {
+      await SolariaSync.sincronizarNotasComSala(notas);
+    }
   });
 
-  // Interação com Elementos e Tokens no Grid
+  // Interação de Clique nos Tokens no Mapa
   OBR.player.onChange(async (player) => {
     const selection = player.selection;
     if (!selection || selection.length !== 1) return;
@@ -759,7 +1815,7 @@ OBR.onReady(async () => {
 
         await OBR.popover.open({
           id: ID_QUICK_STAT,
-          url: BASE_URL + `/painel/fichas/quick-stat.html?${query}`,
+          url: resolverRota(`/painel/fichas/quick-stat.html?${query}`),
           width: 210,
           height: 115,
           anchorElementId: item.id,
@@ -775,7 +1831,7 @@ OBR.onReady(async () => {
 {
   "manifest_version": 1,
   "name": "Solaria Companion",
-  "version": "1.0.0",
+  "version": "2026.11.9-2222",
   "description": "Extensão para Solaria no Owlbear Rodeo",
   "author": "Nicolas Arths",
   "icon": "/vite.svg",
@@ -790,6 +1846,7 @@ OBR.onReady(async () => {
 
 === ARQUIVO: \menu\criar-ficha.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { resolverRota } from "../core/config.js";
 
 export const criarFichaOption = {
   id: "solaria/context-menu-criar-ficha",
@@ -797,7 +1854,7 @@ export const criarFichaOption = {
   config: {
     icons: [
       {
-        icon: "/favicon.svg",
+        icon: resolverRota("/favicon.svg"),
         label: "Criar Ficha",
         filter: {
           every: [
@@ -815,10 +1872,9 @@ export const criarFichaOption = {
     if (!item) return;
 
     const tokenId = item.id;
-    // Prioriza o nome ou rótulo de texto atribuído ao token no mapa
     const tokenNome = item.text?.plainText || (item.name && item.name !== "Image" ? item.name : "") || item.name || "Novo Token";
 
-    // 1. Salva a intenção no localStorage para não perder a ação se o painel estiver abrindo
+    // 1. Salva intenção para não perder se o painel estiver abrindo
     localStorage.setItem("solaria_acao_pendente", JSON.stringify({
       tipo: "CRIAR_FICHA",
       tokenId,
@@ -826,12 +1882,12 @@ export const criarFichaOption = {
       timestamp: Date.now()
     }));
 
-    // 2. Garante que o painel seja aberto
+    // 2. Garante abertura ou foco no painel
     if (helpers?.abrirOuFocarPainel) {
       await helpers.abrirOuFocarPainel();
     }
 
-    // 3. Emite broadcast imediato caso o painel já esteja carregado e aberto na tela
+    // 3. Emite broadcast caso o painel já esteja ativo
     try {
       await OBR.broadcast.sendMessage("solaria/criar-ficha-token", {
         tokenId,
@@ -1068,6 +2124,18 @@ export function render(container, Estado) {
 === ARQUIVO: \painel\anotacoes\note-card.js ===
 import { criarRichEditor } from "../../ui/rich-editor.js";
 
+function obterIconePermissaoNota(nota) {
+  if (nota.visivelPlayer === false) return "🔒";
+  if (!nota.editavelPlayer) return "👁️";
+  return "✍️";
+}
+
+function obterTituloPermissaoNota(nota) {
+  if (nota.visivelPlayer === false) return "Status: Oculto para jogadores (Clique para liberar Leitura)";
+  if (!nota.editavelPlayer) return "Status: Jogador pode Ver apenas (Clique para liberar Edição)";
+  return "Status: Jogador pode Ver e Editar (Clique para Ocultar)";
+}
+
 export function criarCardNota({
   nota,
   role,
@@ -1082,7 +2150,8 @@ export function criarCardNota({
   onNavegarFicha
 }) {
   const isGM = role === "GM";
-  const isVisivel = nota.visivelPlayer === true;
+  const isVisivel = nota.visivelPlayer !== false;
+  const isEditavel = isGM || nota.editavelPlayer === true;
 
   const card = document.createElement("div");
   card.className = `note-card ${aberta ? "" : "is-collapsed"}`;
@@ -1091,15 +2160,15 @@ export function criarCardNota({
   card.innerHTML = `
     <div class="note-card-header">
       <button type="button" class="btn-collapse-arrow" title="Colapsar / Expandir">▼</button>
-      <input type="text" class="note-title-input" value="${nota.titulo || "Sem Título"}" placeholder="Título da anotação..." ${!isGM ? "readonly" : ""}>
+      <input type="text" class="note-title-input" value="${nota.titulo || "Sem Título"}" placeholder="Título da anotação..." ${!isEditavel ? "readonly" : ""}>
       
       ${isGM ? `
-        <button type="button" class="btn-toggle-visibilidade" title="${isVisivel ? "Visível para jogadores (clique para ocultar)" : "Oculto para jogadores (clique para revelar)"}" style="background:transparent; border:none; cursor:pointer; font-size:12px; margin:0 4px; padding:2px;">
-          ${isVisivel ? "👁️" : "🔒"}
+        <button type="button" class="btn-toggle-permissao-nota" title="${obterTituloPermissaoNota(nota)}" style="background:transparent; border:none; cursor:pointer; font-size:12px; margin:0 4px; padding:2px;">
+          ${obterIconePermissaoNota(nota)}
         </button>
-      ` : ""}
+      ` : (nota.editavelPlayer ? `<span title="Você pode editar esta anotação" style="font-size:11px; margin:0 4px;">✍️</span>` : "")}
       
-      <span class="note-save-badge">${isGM ? "● Guardado" : ""}</span>
+      <span class="note-save-badge">${isEditavel ? "● Guardado" : ""}</span>
       ${isGM ? `<button type="button" class="btn-delete-note" title="Clique duas vezes para excluir">✕</button>` : ""}
     </div>
     <div class="note-card-body">
@@ -1107,7 +2176,7 @@ export function criarCardNota({
       <div class="note-attachments-bar">
         <span class="note-attach-label">📎 Anexos:</span>
         <div class="note-chips-container"></div>
-        ${isGM ? `
+        ${isEditavel ? `
           <div class="attach-dropdown-wrapper">
             <button type="button" class="btn-add-chip-trigger">+ Anexar Ficha</button>
             <div class="attach-popup-menu"></div>
@@ -1125,13 +2194,13 @@ export function criarCardNota({
   const chipsContainer = card.querySelector(".note-chips-container");
   const triggerBtn = card.querySelector(".btn-add-chip-trigger");
   const popupMenu = card.querySelector(".attach-popup-menu");
-  const btnVisibilidade = card.querySelector(".btn-toggle-visibilidade");
+  const btnPermissao = card.querySelector(".btn-toggle-permissao-nota");
 
   const editor = criarRichEditor({
-    placeholder: "Registe pistas, ideias, regras ou tarefas...",
+    placeholder: isEditavel ? "Registe pistas, ideias, regras ou tarefas..." : "Anotação em modo leitura...",
     valorInicial: nota.conteudo,
     onSalvar: (novoConteudo) => {
-      if (!isGM) return;
+      if (!isEditavel) return;
       saveBadge.textContent = "● Guardado";
       saveBadge.style.color = "#9ece6a";
       if (typeof onConteudoChange === "function") {
@@ -1141,8 +2210,7 @@ export function criarCardNota({
   });
   editorSlot.appendChild(editor.elemento);
 
-  // Travar editor para jogadores
-  if (!isGM) {
+  if (!isEditavel) {
     const editorBody = editorSlot.querySelector("[contenteditable]");
     if (editorBody) editorBody.setAttribute("contenteditable", "false");
     const toolbar = editorSlot.querySelector(".solaria-editor-toolbar");
@@ -1158,11 +2226,11 @@ export function criarCardNota({
       chip.className = "note-chip";
       chip.innerHTML = `
         <span class="chip-text">${anexo.nome}</span>
-        ${isGM ? `<span class="chip-remove" title="Desanexar">×</span>` : ""}
+        ${isEditavel ? `<span class="chip-remove" title="Desanexar">×</span>` : ""}
       `;
 
       chip.addEventListener("click", (e) => {
-        if (isGM && e.target.classList.contains("chip-remove")) {
+        if (isEditavel && e.target.classList.contains("chip-remove")) {
           e.stopPropagation();
           anexos.splice(idx, 1);
           nota.anexos = anexos;
@@ -1212,7 +2280,7 @@ export function criarCardNota({
     });
   }
 
-  if (isGM && triggerBtn) {
+  if (isEditavel && triggerBtn) {
     triggerBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1238,7 +2306,7 @@ export function criarCardNota({
       e.target === titleInput || 
       e.target === deleteBtn || 
       deleteBtn?.contains(e.target) || 
-      e.target.closest(".btn-toggle-visibilidade")
+      e.target.closest(".btn-toggle-permissao-nota")
     ) return;
     
     const isCollapsed = card.classList.toggle("is-collapsed");
@@ -1246,27 +2314,26 @@ export function criarCardNota({
   });
 
   if (isGM) {
-    btnVisibilidade?.addEventListener("click", (e) => {
+    btnPermissao?.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (typeof onVisibilidadeChange === "function") onVisibilidadeChange();
-    });
 
-    let debounceTimer;
-    titleInput.addEventListener("input", (e) => {
-      saveBadge.textContent = "● A guardar...";
-      saveBadge.style.color = "#e0af68";
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        const novoTitulo = e.target.value.trim() || "Sem Título";
-        saveBadge.textContent = "● Guardado";
-        saveBadge.style.color = "#9ece6a";
-        if (typeof onTituloChange === "function") onTituloChange(novoTitulo);
-      }, 400);
+      let novasPermissoes = {};
+      if (nota.visivelPlayer === false) {
+        novasPermissoes = { visivelPlayer: true, editavelPlayer: false };
+      } else if (!nota.editavelPlayer) {
+        novasPermissoes = { visivelPlayer: true, editavelPlayer: true };
+      } else {
+        novasPermissoes = { visivelPlayer: false, editavelPlayer: false };
+      }
+
+      if (typeof onVisibilidadeChange === "function") {
+        onVisibilidadeChange(novasPermissoes);
+      }
     });
 
     let resetDeleteTimer = null;
-    deleteBtn.addEventListener("click", (e) => {
+    deleteBtn?.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (deleteBtn.classList.contains("confirm-delete")) {
@@ -1282,6 +2349,21 @@ export function criarCardNota({
         deleteBtn.classList.remove("confirm-delete");
         deleteBtn.textContent = "✕";
       }, 3000);
+    });
+  }
+
+  if (isEditavel) {
+    let debounceTimer;
+    titleInput.addEventListener("input", (e) => {
+      saveBadge.textContent = "● A guardar...";
+      saveBadge.style.color = "#e0af68";
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const novoTitulo = e.target.value.trim() || "Sem Título";
+        saveBadge.textContent = "● Guardado";
+        saveBadge.style.color = "#9ece6a";
+        if (typeof onTituloChange === "function") onTituloChange(novoTitulo);
+      }, 400);
     });
   }
 
@@ -1311,8 +2393,7 @@ export function criarGerenciadorNotas(containerCards, Estado) {
     containerCards.innerHTML = "";
     const isGM = Estado.role === "GM";
 
-    // Filtra as notas: Mestre vê todas; Jogador vê apenas as visíveis
-    const notasFiltradas = NotesStore.notas.filter(n => isGM || n.visivelPlayer === true);
+    const notasFiltradas = NotesStore.notas.filter(n => isGM || n.visivelPlayer !== false);
 
     if (!notasFiltradas.length) {
       containerCards.innerHTML = `
@@ -1340,13 +2421,12 @@ export function criarGerenciadorNotas(containerCards, Estado) {
           estadosAbertura[nota.id] = estaAberta;
           salvarEstados();
         },
-        onVisibilidadeChange: async () => {
-          const novaVisibilidade = !nota.visivelPlayer;
-          NotesStore.atualizarNota(nota.id, { visivelPlayer: novaVisibilidade });
-          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || { ...nota, visivelPlayer: novaVisibilidade };
+        onVisibilidadeChange: async (novasPermissoes) => {
+          NotesStore.atualizarNota(nota.id, novasPermissoes);
+          const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || { ...nota, ...novasPermissoes };
 
           try {
-            if (novaVisibilidade) {
+            if (notaAtualizada.visivelPlayer !== false) {
               await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
             } else {
               await OBR.broadcast.sendMessage("solaria/nota-excluida", nota.id);
@@ -1356,31 +2436,28 @@ export function criarGerenciadorNotas(containerCards, Estado) {
           renderizar();
         },
         onTituloChange: async (novoTitulo) => {
-          NotesStore.atualizarNota(nota.id, { titulo: novoTitulo });
+          const isGM = Estado.role === "GM";
+          NotesStore.atualizarNota(nota.id, { titulo: novoTitulo }, isGM);
           const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
-          if (notaAtualizada.visivelPlayer) {
-            try {
-              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
-            } catch (_) {}
-          }
+          try {
+            await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+          } catch (_) {}
         },
         onConteudoChange: async (novoConteudo) => {
-          NotesStore.atualizarNota(nota.id, { conteudo: novoConteudo });
+          const isGM = Estado.role === "GM";
+          NotesStore.atualizarNota(nota.id, { conteudo: novoConteudo }, isGM);
           const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
-          if (notaAtualizada.visivelPlayer) {
-            try {
-              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
-            } catch (_) {}
-          }
+          try {
+            await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+          } catch (_) {}
         },
         onAnexosChange: async (novosAnexos) => {
-          NotesStore.atualizarNota(nota.id, { anexos: novosAnexos });
+          const isGM = Estado.role === "GM";
+          NotesStore.atualizarNota(nota.id, { anexos: novosAnexos }, isGM);
           const notaAtualizada = NotesStore.notas.find(n => n.id === nota.id) || nota;
-          if (notaAtualizada.visivelPlayer) {
-            try {
-              await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
-            } catch (_) {}
-          }
+          try {
+            await OBR.broadcast.sendMessage("solaria/nota-sync", notaAtualizada);
+          } catch (_) {}
         },
         onExcluir: async () => {
           const idExcluir = nota.id;
@@ -1993,20 +3070,22 @@ import { renderInventarioCard } from "./inventario.js";
 import { selecionarTokenNoGrid, desvincularToken, obterDadosTokenSelecionado, vincularTokenAoId } from "./obr-sync.js";
 import { atualizarHudToken, removerHudToken } from "./token-hud.js";
 
-// 🧩 COMPONENTE REUTILIZÁVEL: Pode ser importado noutros módulos
-export function UI_BotaoVisibilidade(isVisivel, classExtra = "btn-icon-action") {
-  return `
-    <button type="button" class="${classExtra} btn-toggle-visibilidade" title="${isVisivel ? "Visível para jogadores (clique para ocultar)" : "Oculto para jogadores (clique para revelar)"}">
-      ${isVisivel ? "👁️" : "🔒"}
-    </button>
-  `;
+export function UI_BotaoPermissao(f, classExtra = "btn-icon-action") {
+  if (f.visivelPlayer === false) {
+    return `<button type="button" class="${classExtra} btn-toggle-permissao" title="Status: Oculto para jogadores (Clique para liberar Leitura)">🔒</button>`;
+  }
+  if (!f.editavelPlayer) {
+    return `<button type="button" class="${classExtra} btn-toggle-permissao" title="Status: Jogador pode Ver apenas (Clique para liberar Edição)">👁️</button>`;
+  }
+  return `<button type="button" class="${classExtra} btn-toggle-permissao" title="Status: Jogador pode Ver e Editar (Clique para Ocultar)">✍️</button>`;
 }
 
 export function criarElementoCard(f, role, acoes) {
   const isGM = role === "GM";
   const isVisivel = f.visivelPlayer !== false;
+  const isEditavel = isGM || f.editavelPlayer === true;
 
-  // Bloqueio Rigoroso: Se não for GM e a ficha estiver oculta, morre aqui e não renderiza nada.
+  // Bloqueio rigoroso se estiver oculto e o usuário for jogador
   if (!isGM && !isVisivel) {
     const placeholder = document.createElement("div");
     placeholder.style.display = "none";
@@ -2021,13 +3100,12 @@ export function criarElementoCard(f, role, acoes) {
     <div class="sheet-card-header">
       <div class="sheet-title">
         <span>${f.nome}</span>
+        ${!isGM && f.editavelPlayer ? `<span title="Você pode editar esta ficha" style="font-size:11px;">✍️</span>` : ""}
       </div>
       <div class="sheet-actions">
         <span class="sheet-tag-badge">${f.tag || "NPC"}</span>
-        ${isGM ? `
-          ${UI_BotaoVisibilidade(isVisivel)}
-          <button type="button" class="btn-icon-action btn-edit" title="Editar Ficha">✏️</button>
-        ` : ""}
+        ${isGM ? UI_BotaoPermissao(f) : ""}
+        ${isEditavel ? `<button type="button" class="btn-icon-action btn-edit" title="Editar Ficha">✏️</button>` : ""}
       </div>
     </div>
 
@@ -2058,7 +3136,8 @@ export function criarElementoCard(f, role, acoes) {
     </div>
   `;
 
-  if (!isGM) {
+  // Se não tiver permissão de edição, trava os inputs em modo leitura
+  if (!isEditavel) {
     card.querySelectorAll(".stat-calc-input, input").forEach(input => {
       input.setAttribute("readonly", "true");
       input.style.cursor = "default";
@@ -2070,7 +3149,7 @@ export function criarElementoCard(f, role, acoes) {
   card.querySelector(".sheet-card-header").addEventListener("click", (e) => {
     if (
       e.target.closest(".btn-edit") ||
-      e.target.closest(".btn-toggle-visibilidade") ||
+      e.target.closest(".btn-toggle-permissao") ||
       e.target.closest(".token-link-row") ||
       e.target.closest(".stat-calc-input")
     ) return;
@@ -2080,16 +3159,31 @@ export function criarElementoCard(f, role, acoes) {
 
   card.querySelector(".btn-select-token")?.addEventListener("click", () => selecionarTokenNoGrid(f.tokenId));
 
+  // Ação de editar disponível para GM ou jogador com permissão
+  if (isEditavel) {
+    card.querySelector(".btn-edit")?.addEventListener("click", () => acoes.onEditar(f));
+  }
+
   if (isGM) {
-    card.querySelector(".btn-toggle-visibilidade")?.addEventListener("click", async (e) => {
+    // Ciclo de permissões: 🔒 Oculto ➔ 👁️ Ver ➔ ✍️ Ver e Editar ➔ 🔒 Oculto
+    card.querySelector(".btn-toggle-permissao")?.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      f.visivelPlayer = !isVisivel;
-      acoes.onAtualizar(f); // Passa a ficha atualizada para sincronizar na rede
+
+      if (f.visivelPlayer === false) {
+        f.visivelPlayer = true;
+        f.editavelPlayer = false;
+      } else if (!f.editavelPlayer) {
+        f.visivelPlayer = true;
+        f.editavelPlayer = true;
+      } else {
+        f.visivelPlayer = false;
+        f.editavelPlayer = false;
+      }
+
+      acoes.onAtualizar(f);
       await atualizarHudToken(f);
     });
-
-    card.querySelector(".btn-edit")?.addEventListener("click", () => acoes.onEditar(f));
 
     card.querySelector(".btn-token-unlink")?.addEventListener("click", async () => {
       const idParaRemover = f.tokenId;
@@ -2128,13 +3222,15 @@ import { renderHabilidadesForm, getHabilidadesFormData } from "./habilidades.js"
 import { renderInventarioForm, getInventarioFormData } from "./inventario.js";
 import { vincularTokenAoId, desvincularToken } from "./obr-sync.js";
 
-export function renderFormulario(container, ficha, onVoltar, onSalvar, onExcluir) {
+export function renderFormulario(container, ficha, onVoltar, onSalvar, onExcluir, role = "GM") {
+  const isGM = role === "GM";
   const editando = Boolean(ficha && ficha.criada);
   const dados = ficha ? JSON.parse(JSON.stringify(ficha)) : {
     id: "f_" + Date.now(),
     nome: "",
     tag: "NPC",
     visivelPlayer: true,
+    editavelPlayer: false,
     stats: { pv: "20", pm: "10", rm: "0", cd: "10", atk: "+0" },
     historico: "",
     habilidades: [],
@@ -2161,10 +3257,18 @@ export function renderFormulario(container, ficha, onVoltar, onSalvar, onExcluir
         <input type="text" id="f-tag" style="width:80px;" placeholder="Tag" value="${dados.tag}">
       </div>
 
-      <label style="font-size:11px; display:flex; align-items:center; gap:6px; cursor:pointer;">
-        <input type="checkbox" id="f-visivel" ${dados.visivelPlayer ? "checked" : ""}>
-        <span>Visível para os Jogadores</span>
-      </label>
+      ${isGM ? `
+        <div style="display:flex; flex-direction:column; gap:6px; background:#14161f; padding:8px; border-radius:6px; border:1px solid #2f354d;">
+          <label style="font-size:11px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="f-visivel" ${dados.visivelPlayer !== false ? "checked" : ""}>
+            <span>👁️ Visível para Jogadores</span>
+          </label>
+          <label style="font-size:11px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="f-editavel" ${dados.editavelPlayer === true ? "checked" : ""}>
+            <span>✍️ Permitir que Jogadores Editem (Ver e Editar)</span>
+          </label>
+        </div>
+      ` : ""}
 
       <div id="area-stats"></div>
       <div id="area-historico"></div>
@@ -2173,7 +3277,7 @@ export function renderFormulario(container, ficha, onVoltar, onSalvar, onExcluir
 
       <div style="display:flex; gap:8px; margin-top:12px;">
         <button id="btn-salvar" class="btn-primary" style="flex:1; padding:8px;">Guardar Ficha</button>
-        ${editando ? `<button id="btn-excluir" class="btn-secondary" style="color:var(--danger); border-color:var(--danger);">Excluir</button>` : ""}
+        ${editando && isGM ? `<button id="btn-excluir" class="btn-secondary" style="color:var(--danger); border-color:var(--danger);">Excluir</button>` : ""}
       </div>
     </div>
   `;
@@ -2185,7 +3289,7 @@ export function renderFormulario(container, ficha, onVoltar, onSalvar, onExcluir
 
   container.querySelector("#btn-voltar").addEventListener("click", onVoltar);
 
-  if (editando) {
+  if (editando && isGM) {
     container.querySelector("#btn-excluir").addEventListener("click", async () => {
       await desvincularToken(dados.tokenId);
       onExcluir(dados.id);
@@ -2198,14 +3302,19 @@ export function renderFormulario(container, ficha, onVoltar, onSalvar, onExcluir
 
     dados.nome = nome;
     dados.tag = container.querySelector("#f-tag").value.trim() || "NPC";
-    dados.visivelPlayer = container.querySelector("#f-visivel").checked;
+
+    if (isGM) {
+      dados.visivelPlayer = container.querySelector("#f-visivel").checked;
+      dados.editavelPlayer = container.querySelector("#f-editavel").checked;
+    }
+
     dados.stats = getStatsFormData(container, dados.stats);
     dados.historico = getHistoricoFormData(container);
     dados.habilidades = getHabilidadesFormData(container);
     dados.inventario = getInventarioFormData(container);
     dados.criada = true;
 
-    if (dados.tokenId) await vincularTokenAoId(dados.tokenId, dados.id);
+    if (dados.tokenId && isGM) await vincularTokenAoId(dados.tokenId, dados.id);
     onSalvar(dados);
   });
 }
@@ -2448,7 +3557,6 @@ export function render(container, Estado) {
     }
   });
 
-  // Atualiza a visualização caso o painel esteja aberto no momento da transmissão
   OBR.broadcast.onMessage("solaria/ficha-sync", () => {
     SheetStore.carregar();
     renderLista();
@@ -2485,6 +3593,7 @@ export function render(container, Estado) {
       nome: tokenNome,
       tag: "NPC",
       visivelPlayer: true,
+      editavelPlayer: false,
       stats: { pv: "20", pm: "10", rm: "0", cd: "10", atk: "+0" },
       historico: "",
       habilidades: [],
@@ -2555,7 +3664,8 @@ export function render(container, Estado) {
         const card = criarElementoCard(f, Estado.role, {
           onEditar: (item) => abrirForm(item),
           onAtualizar: (fichaAtualizada) => { 
-            SheetStore.salvar(); 
+            const isGM = Estado.role === "GM";
+            SheetStore.salvar(isGM); 
             if (fichaAtualizada) OBR.broadcast.sendMessage("solaria/ficha-sync", fichaAtualizada);
             desenhar(); 
           }
@@ -2563,12 +3673,19 @@ export function render(container, Estado) {
         listDiv.appendChild(card);
       });
 
+      // Permite cálculos matemáticos nos inputs para quem tem permissão de edição
       vincularCalculosCard(listDiv, async (fichaId, callbackMutacao) => {
         const ficha = SheetStore.obter(fichaId);
         if (ficha) {
+          const isGM = Estado.role === "GM";
+          const isEditavel = isGM || ficha.editavelPlayer === true;
+          if (!isEditavel) return;
+
           callbackMutacao(ficha);
-          SheetStore.salvar();
-          await atualizarHudToken(ficha);
+          SheetStore.salvar(isGM);
+          if (isGM) {
+            await atualizarHudToken(ficha);
+          }
           OBR.broadcast.sendMessage("solaria/ficha-sync", ficha);
         }
       });
@@ -2584,18 +3701,24 @@ export function render(container, Estado) {
       ficha,
       () => renderLista(),
       async (dadosSalvos) => {
-        SheetStore.adicionarOuAtualizar(dadosSalvos);
-        await atualizarHudToken(dadosSalvos);
+        const isGM = Estado.role === "GM";
+        SheetStore.adicionarOuAtualizar(dadosSalvos, isGM);
+        if (isGM) {
+          await atualizarHudToken(dadosSalvos);
+        }
         OBR.broadcast.sendMessage("solaria/ficha-sync", dadosSalvos);
         renderLista();
       },
       async (idExcluir) => {
+        const isGM = Estado.role === "GM";
+        if (!isGM) return;
         const f = SheetStore.obter(idExcluir);
         if (f?.tokenId) await removerHudToken(f.tokenId, idExcluir);
         SheetStore.remover(idExcluir);
         OBR.broadcast.sendMessage("solaria/ficha-excluida", idExcluir);
         renderLista();
-      }
+      },
+      Estado.role
     );
   }
 
@@ -2765,7 +3888,7 @@ export function iniciarOuvintesOwlbear(onFocarFicha, onCriarFicha) {
     </div>
   </div>
 
-  <div class="hint">Digite ex: <b>-10</b>, <b>+5</b>, <b>/2</b> e tecle <b>Enter</b></div>
+  <div id="hint-text" class="hint">Digite ex: <b>-10</b>, <b>+5</b>, <b>/2</b> e tecle <b>Enter</b></div>
 
   <script type="module">
     import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
@@ -2788,6 +3911,24 @@ export function iniciarOuvintesOwlbear(onFocarFicha, onCriarFicha) {
 
     const inpAtual = document.getElementById("inp-atual");
     const inpMax = document.getElementById("inp-max");
+    const hintText = document.getElementById("hint-text");
+
+    let isEditavel = true;
+
+    OBR.onReady(async () => {
+      const role = await OBR.player.getRole();
+      const isGM = role === "GM";
+      isEditavel = isGM || (ficha && ficha.editavelPlayer === true);
+
+      if (!isEditavel) {
+        inpAtual.setAttribute("readonly", "true");
+        inpMax.setAttribute("readonly", "true");
+        inpAtual.style.cursor = "default";
+        inpMax.style.cursor = "default";
+        hintText.textContent = "🔒 Apenas Leitura (Mestre não liberou edição)";
+        hintText.style.color = "#f7768e";
+      }
+    });
 
     if (ficha) {
       document.getElementById("ficha-nome").textContent = ficha.nome;
@@ -2802,7 +3943,7 @@ export function iniciarOuvintesOwlbear(onFocarFicha, onCriarFicha) {
 
     let salvando = false;
     async function salvarEFechar() {
-      if (!ficha || salvando) return;
+      if (!ficha || salvando || !isEditavel) return;
       salvando = true;
 
       const antigoAtual = ficha.stats[statId].atual;
@@ -2814,8 +3955,12 @@ export function iniciarOuvintesOwlbear(onFocarFicha, onCriarFicha) {
       localStorage.setItem("solaria_fichas_custom", JSON.stringify(fichas));
 
       try {
-        await atualizarHudToken(ficha);
-        await SolariaSync.sincronizarFichasComSala(fichas);
+        const role = await OBR.player.getRole();
+        if (role === "GM") {
+          await atualizarHudToken(ficha);
+          await SolariaSync.sincronizarFichasComSala(fichas);
+        }
+        await OBR.broadcast.sendMessage("solaria/ficha-sync", ficha);
         await OBR.broadcast.sendMessage("solaria/ficha-stat-atualizado", { sheetId });
       } catch (_) {}
 
@@ -4311,46 +5456,13 @@ setTimeout(() => {
   }
 }, 500);
 
-=== ARQUIVO: \server.js ===
-const http = require("http");
+=== ARQUIVO: \server\builder.js ===
 const fs = require("fs");
 const path = require("path");
 
-const PORT = 8081;
-
-const mimeTypes = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "application/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".ico": "image/x-icon"
-};
-
-let sseClients = [];
-
-function notificarRecarregamento() {
-  sseClients.forEach((client) => client.write("data: reload\n\n"));
-}
-
-const SCRIPT_LIVE_RELOAD = `
-<script>
-  (function() {
-    const sse = new EventSource('/livereload');
-    sse.onmessage = () => {
-      console.log('⚡ [Solaria Dev] Atualização salva. Recarregando...');
-      location.reload();
-    };
-  })();
-</script>
-</body>`;
-
-function sincronizarModulosJson() {
-  const painelDir = path.join(__dirname, "painel");
-  const modulosPath = path.join(__dirname, "modulos.json");
+function sincronizarModulosJson(rootDir) {
+  const painelDir = path.join(rootDir, "painel");
+  const modulosPath = path.join(rootDir, "modulos.json");
   const estrutura = {};
 
   if (!fs.existsSync(painelDir)) return;
@@ -4382,8 +5494,7 @@ function sincronizarModulosJson() {
   fs.writeFileSync(modulosPath, JSON.stringify(estrutura, null, 2), "utf-8");
 }
 
-// 📦 GERAÇÃO AUTOMÁTICA DO PROJETO COMPLETO NO CTRL+S
-function gerarProjetoCompleto() {
+function gerarProjetoCompleto(rootDir) {
   try {
     const extensoesValidas = [".js", ".html", ".css", ".json"];
     let output = "";
@@ -4392,16 +5503,22 @@ function gerarProjetoCompleto() {
       const itens = fs.readdirSync(dir, { withFileTypes: true });
       for (const item of itens) {
         const nome = item.name;
-        if (nome === ".git" || nome === "node_modules" || nome === "projeto_completo.txt" || nome === "package-lock.json") {
+        if (
+          nome === ".git" || 
+          nome === "node_modules" || 
+          nome === "projeto_completo.txt" || 
+          nome === "package-lock.json"
+        ) {
           continue;
         }
+
         const fullPath = path.join(dir, nome);
         if (item.isDirectory()) {
           varrerDiretorio(fullPath);
         } else if (item.isFile()) {
           const ext = path.extname(nome).toLowerCase();
           if (extensoesValidas.includes(ext)) {
-            const relPath = "\\" + path.relative(__dirname, fullPath);
+            const relPath = "\\" + path.relative(rootDir, fullPath);
             const content = fs.readFileSync(fullPath, "utf-8");
             output += `=== ARQUIVO: ${relPath} ===\n${content}\n\n`;
           }
@@ -4409,108 +5526,475 @@ function gerarProjetoCompleto() {
       }
     }
 
-    varrerDiretorio(__dirname);
-    fs.writeFileSync(path.join(__dirname, "projeto_completo.txt"), output, "utf-8");
+    varrerDiretorio(rootDir);
+    fs.writeFileSync(path.join(rootDir, "projeto_completo.txt"), output, "utf-8");
   } catch (err) {
     console.error("Erro ao gerar projeto_completo.txt:", err.message);
   }
 }
 
-let watchTimeout = null;
-fs.watch(__dirname, { recursive: true }, (eventType, filename) => {
-  if (!filename) return;
-  if (
-    filename.includes(".git") || 
-    filename === "modulos.json" || 
-    filename === "projeto_completo.txt"
-  ) return;
+module.exports = {
+  sincronizarModulosJson,
+  gerarProjetoCompleto
+};
 
-  clearTimeout(watchTimeout);
-  watchTimeout = setTimeout(() => {
-    if (filename.startsWith("painel")) {
-      sincronizarModulosJson();
+=== ARQUIVO: \server\deploy.js ===
+const fs = require("fs");
+const path = require("path");
+const readline = require("readline");
+const { execSync } = require("child_process");
+const { sincronizarModulosJson, gerarProjetoCompleto } = require("./builder");
+
+function publicarAtualizacao(mensagemCommit, rootDir) {
+  const agora = new Date();
+  const timestampVersao = `${agora.getFullYear()}.${agora.getMonth() + 1}.${agora.getDate()}-${agora.getHours()}${agora.getMinutes()}`;
+
+  console.log(`\n📦 [Deploy Solaria] Iniciando publicação: "${mensagemCommit}"`);
+  console.log(`🏷️ Nova versão gerada: v${timestampVersao}`);
+
+  // 1. Injeta a versão no index.html (anti-cache)
+  const indexPath = path.join(rootDir, "index.html");
+  if (fs.existsSync(indexPath)) {
+    let indexHtml = fs.readFileSync(indexPath, "utf-8");
+    indexHtml = indexHtml.replace(/main\.js(\?v=[^"'\s>]+)?/g, `main.js?v=${timestampVersao}`);
+    fs.writeFileSync(indexPath, indexHtml, "utf-8");
+    console.log(`✅ index.html atualizado com ?v=${timestampVersao}`);
+  }
+
+  // 2. Atualiza manifest.json
+  const manifestPath = path.join(rootDir, "manifest.json");
+  if (fs.existsSync(manifestPath)) {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      manifest.version = timestampVersao;
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+      console.log(`✅ manifest.json versionado para ${timestampVersao}`);
+    } catch (_) {}
+  }
+
+  // 3. Atualiza arquivos gerados
+  sincronizarModulosJson(rootDir);
+  gerarProjetoCompleto(rootDir);
+
+  // 4. Git Add, Commit e Push
+  try {
+    console.log(`⏳ Executando git add . ...`);
+    execSync("git add .", { stdio: "inherit", cwd: rootDir });
+
+    console.log(`⏳ Executando git commit ...`);
+    const commitMsgFormatada = `v${timestampVersao}: ${mensagemCommit}`;
+    execSync(`git commit -m "${commitMsgFormatada.replace(/"/g, '\\"')}"`, { stdio: "inherit", cwd: rootDir });
+
+    console.log(`🚀 Executando git push origin main ...`);
+    execSync("git push", { stdio: "inherit", cwd: rootDir });
+
+    console.log(`\n🎉 [DEPLOY CONCLUÍDO COM SUCESSO!]`);
+    console.log(`👉 A versão v${timestampVersao} estará disponível no GitHub Pages em instantes.\n`);
+  } catch (err) {
+    console.error(`\n❌ Falha durante o deploy do Git:`, err.message);
+  }
+}
+
+function iniciarCLI(rootDir) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: false
+  });
+
+  rl.on("line", (linha) => {
+    const msg = linha.trim();
+    if (!msg) return;
+
+    if (msg.toLowerCase() === "cls" || msg.toLowerCase() === "clear") {
+      console.clear();
+      return;
     }
-    gerarProjetoCompleto();
-    notificarRecarregamento();
-  }, 120);
-});
 
-sincronizarModulosJson();
-gerarProjetoCompleto();
+    publicarAtualizacao(msg, rootDir);
+  });
+}
 
-http.createServer((req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS, POST");
-  res.setHeader("Access-Control-Allow-Headers", "*");
-  res.setHeader("Access-Control-Allow-Private-Network", "true");
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
+module.exports = { iniciarCLI };
 
-  if (req.method === "OPTIONS") {
-    res.writeHead(204);
-    return res.end();
-  }
+=== ARQUIVO: \server\http.js ===
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const { adicionarCliente, removerCliente, SCRIPT_LIVE_RELOAD } = require("./livereload");
 
-  const urlPath = req.url.split("?")[0];
+const mimeTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".ico": "image/x-icon"
+};
 
-  if (urlPath === "/livereload") {
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Connection": "keep-alive"
-    });
-    sseClients.push(res);
-    req.on("close", () => {
-      sseClients = sseClients.filter((c) => c !== res);
-    });
-    return;
-  }
+function criarServidorHttp({ rootDir, port }) {
+  return http.createServer((req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS, POST");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
 
-  let cleanPath = urlPath.replace(/^\/solaria-companion/, "");
-  if (!cleanPath || cleanPath === "/") cleanPath = "/index.html";
-
-  if (cleanPath === "/manifest.json") {
-    const manifestPath = path.join(__dirname, "manifest.json");
-    if (fs.existsSync(manifestPath)) {
-      try {
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-        manifest.name = `${manifest.name || "Solaria"} (DEV Local)`;
-        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-        return res.end(JSON.stringify(manifest, null, 2));
-      } catch (_) {}
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      return res.end();
     }
-  }
 
-  const filePath = path.join(__dirname, cleanPath);
+    const urlPath = req.url.split("?")[0];
 
-  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = mimeTypes[ext] || "text/plain; charset=utf-8";
+    // Endpoint de Live Reload
+    if (urlPath === "/livereload") {
+      adicionarCliente(res);
+      req.on("close", () => removerCliente(res));
+      return;
+    }
 
-    if (ext === ".html") {
-      let html = fs.readFileSync(filePath, "utf-8");
-      if (html.includes("</body>")) {
-        html = html.replace("</body>", SCRIPT_LIVE_RELOAD);
-      } else {
-        html += SCRIPT_LIVE_RELOAD;
+    let cleanPath = urlPath.replace(/^\/solaria-companion/, "");
+    if (!cleanPath || cleanPath === "/") cleanPath = "/index.html";
+
+    // Manifesto com sufixo (DEV Local)
+    if (cleanPath === "/manifest.json") {
+      const manifestPath = path.join(rootDir, "manifest.json");
+      if (fs.existsSync(manifestPath)) {
+        try {
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+          manifest.name = `${manifest.name || "Solaria"} (DEV Local)`;
+          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+          return res.end(JSON.stringify(manifest, null, 2));
+        } catch (_) {}
       }
-      res.writeHead(200, { "Content-Type": contentType });
-      return res.end(html);
     }
 
-    res.writeHead(200, { "Content-Type": contentType });
-    fs.createReadStream(filePath).pipe(res);
-  } else {
-    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end("404 Not Found");
-  }
-}).listen(PORT, () => {
+    const filePath = path.join(rootDir, cleanPath);
+
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      const ext = path.extname(filePath).toLowerCase();
+      const contentType = mimeTypes[ext] || "text/plain; charset=utf-8";
+
+      if (ext === ".html") {
+        let html = fs.readFileSync(filePath, "utf-8");
+        if (html.includes("</body>")) {
+          html = html.replace("</body>", SCRIPT_LIVE_RELOAD);
+        } else {
+          html += SCRIPT_LIVE_RELOAD;
+        }
+        res.writeHead(200, { "Content-Type": contentType });
+        return res.end(html);
+      }
+
+      res.writeHead(200, { "Content-Type": contentType });
+      fs.createReadStream(filePath).pipe(res);
+    } else {
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("404 Not Found");
+    }
+  });
+}
+
+module.exports = { criarServidorHttp };
+
+=== ARQUIVO: \server\index.js ===
+const path = require("path");
+const { criarServidorHttp } = require("./http");
+const { sincronizarModulosJson, gerarProjetoCompleto } = require("./builder");
+const { iniciarWatcher } = require("./watcher");
+const { iniciarCLI } = require("./deploy");
+
+const PORT = 8081;
+const ROOT_DIR = path.resolve(__dirname, "..");
+
+// 1. Gera arquivos essenciais na inicialização
+sincronizarModulosJson(ROOT_DIR);
+gerarProjetoCompleto(ROOT_DIR);
+
+// 2. Inicia o monitor de alterações
+iniciarWatcher(ROOT_DIR);
+
+// 3. Sobe o servidor HTTP
+const server = criarServidorHttp({ rootDir: ROOT_DIR, port: PORT });
+
+server.listen(PORT, () => {
   console.log(`\n==================================================`);
   console.log(`⚡ Solaria Dev Server rodando em: http://localhost:${PORT}`);
   console.log(`📦 Manifesto Local: http://localhost:${PORT}/manifest.json`);
-  console.log(`📝 projeto_completo.txt sendo atualizado automaticamente no Ctrl+S.`);
+  console.log(`📝 projeto_completo.txt sincronizado automaticamente.`);
+  console.log(`--------------------------------------------------`);
+  console.log(`💬 COMANDO DE DEPLOY ATIVO:`);
+  console.log(`   Digite sua mensagem no terminal e dê ENTER para`);
+  console.log(`   gerar versão, commit e git push automaticamente!`);
   console.log(`==================================================\n`);
+
+  // 4. Inicia leitura interativa do terminal
+  iniciarCLI(ROOT_DIR);
 });
+
+=== ARQUIVO: \server\livereload.js ===
+let sseClients = [];
+
+function adicionarCliente(res) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Connection": "keep-alive"
+  });
+  sseClients.push(res);
+}
+
+function removerCliente(res) {
+  sseClients = sseClients.filter((c) => c !== res);
+}
+
+function notificarRecarregamento() {
+  sseClients.forEach((client) => client.write("data: reload\n\n"));
+}
+
+const SCRIPT_LIVE_RELOAD = `
+<script>
+  (function() {
+    const sse = new EventSource('/livereload');
+    sse.onmessage = () => {
+      console.log('⚡ [Solaria Dev] Atualização salva. Recarregando...');
+      location.reload();
+    };
+  })();
+</script>
+</body>`;
+
+module.exports = {
+  adicionarCliente,
+  removerCliente,
+  notificarRecarregamento,
+  SCRIPT_LIVE_RELOAD
+};
+
+=== ARQUIVO: \server\watcher.js ===
+const fs = require("fs");
+const { sincronizarModulosJson, gerarProjetoCompleto } = require("./builder");
+const { notificarRecarregamento } = require("./livereload");
+
+function iniciarWatcher(rootDir) {
+  let watchTimeout = null;
+
+  fs.watch(rootDir, { recursive: true }, (eventType, filename) => {
+    if (!filename) return;
+
+    if (
+      filename.includes(".git") || 
+      filename.includes("node_modules") || 
+      filename === "modulos.json" || 
+      filename === "projeto_completo.txt"
+    ) {
+      return;
+    }
+
+    clearTimeout(watchTimeout);
+    watchTimeout = setTimeout(() => {
+      if (filename.startsWith("painel")) {
+        sincronizarModulosJson(rootDir);
+      }
+      gerarProjetoCompleto(rootDir);
+      notificarRecarregamento();
+    }, 120);
+  });
+}
+
+module.exports = { iniciarWatcher };
+
+=== ARQUIVO: \server.js ===
+require("./server/index.js");
+
+=== ARQUIVO: \style.css ===
+body {
+  background-color: #1a1b26;
+  color: #c0caf5;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 16px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100vh;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.btn-main {
+  background-color: #9d7cd8;
+  color: #ffffff;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  width: 100%;
+}
+.btn-main:hover {
+  background-color: #b193e6;
+}
+
+.btn-danger {
+  background-color: #f7768e;
+  color: #ffffff;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  width: 100%;
+  margin-top: auto;
+}
+.btn-danger:hover {
+  background-color: #f55373;
+}
+
+.config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #24283b;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.config-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #7982a9;
+  letter-spacing: 0.5px;
+}
+
+.cloud-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cloud-field label {
+  font-size: 11px;
+  color: #a9b1d6;
+  font-weight: 600;
+}
+
+.cloud-input {
+  background: #16161e;
+  border: 1px solid #3b4261;
+  color: #c0caf5;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.cloud-input:focus {
+  border-color: #7aa2f7;
+}
+
+.cloud-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-cloud {
+  flex: 1;
+  padding: 8px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, background-color 0.2s;
+  border: none;
+}
+
+.btn-cloud-save {
+  background: #7aa2f7;
+  color: #14161f;
+}
+.btn-cloud-save:hover {
+  opacity: 0.9;
+}
+
+.btn-cloud-load {
+  background: #1f2335;
+  color: #c0caf5;
+  border: 1px solid #3b4261;
+}
+.btn-cloud-load:hover {
+  background: #2f354d;
+}
+
+.cloud-status {
+  font-size: 10px;
+  text-align: center;
+  min-height: 14px;
+  color: #7982a9;
+}
+
+/* Switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #414868;
+  transition: 0.3s;
+  border-radius: 20px;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #73daca;
+}
+input:checked + .slider:before {
+  transform: translateX(16px);
+}
 
 === ARQUIVO: \ui\rich-editor.js ===
 /**

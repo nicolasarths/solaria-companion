@@ -1,4 +1,5 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { resolverRota } from "../core/config.js";
 
 export const criarFichaOption = {
   id: "solaria/context-menu-criar-ficha",
@@ -6,7 +7,7 @@ export const criarFichaOption = {
   config: {
     icons: [
       {
-        icon: "/favicon.svg",
+        icon: resolverRota("/favicon.svg"),
         label: "Criar Ficha",
         filter: {
           every: [
@@ -24,10 +25,9 @@ export const criarFichaOption = {
     if (!item) return;
 
     const tokenId = item.id;
-    // Prioriza o nome ou rótulo de texto atribuído ao token no mapa
     const tokenNome = item.text?.plainText || (item.name && item.name !== "Image" ? item.name : "") || item.name || "Novo Token";
 
-    // 1. Salva a intenção no localStorage para não perder a ação se o painel estiver abrindo
+    // 1. Salva intenção para não perder se o painel estiver abrindo
     localStorage.setItem("solaria_acao_pendente", JSON.stringify({
       tipo: "CRIAR_FICHA",
       tokenId,
@@ -35,12 +35,12 @@ export const criarFichaOption = {
       timestamp: Date.now()
     }));
 
-    // 2. Garante que o painel seja aberto
+    // 2. Garante abertura ou foco no painel
     if (helpers?.abrirOuFocarPainel) {
       await helpers.abrirOuFocarPainel();
     }
 
-    // 3. Emite broadcast imediato caso o painel já esteja carregado e aberto na tela
+    // 3. Emite broadcast caso o painel já esteja ativo
     try {
       await OBR.broadcast.sendMessage("solaria/criar-ficha-token", {
         tokenId,

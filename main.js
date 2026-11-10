@@ -1,4 +1,5 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { BASE_URL, resolverRota } from "./core/config.js";
 import { registrarMenusContexto } from "./menu/options.js";
 import { 
   sincronizarTodosHuds, 
@@ -17,9 +18,6 @@ const ID_QUICK_STAT = "solaria-quick-stat-editor";
 let aberto = false;
 let combateAberto = false;
 
-const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-const BASE_URL = isLocal ? "" : "https://nicolasarths.github.io/solaria-companion";
-
 export async function abrirOuFocarPainel() {
   if (!aberto) {
     const salvo = JSON.parse(localStorage.getItem("solaria_painel_dimensoes") || "{}");
@@ -28,7 +26,7 @@ export async function abrirOuFocarPainel() {
 
     await OBR.popover.open({
       id: ID_PAINEL,
-      url: BASE_URL + "/painel/painel.html",
+      url: resolverRota("/painel/painel.html"),
       height: height,
       width: width,
       anchorOrigin: { horizontal: "RIGHT", vertical: "BOTTOM" },
@@ -43,7 +41,7 @@ export async function togglePainelCombate() {
   if (!combateAberto) {
     await OBR.popover.open({
       id: ID_COMBATE,
-      url: BASE_URL + "/combate/combate.html",
+      url: resolverRota("/combate/combate.html"),
       height: 400,
       width: 310,
       anchorOrigin: { horizontal: "LEFT", vertical: "BOTTOM" },
@@ -62,7 +60,7 @@ async function inicializarHudsAoCarregarCena() {
     const role = await OBR.player.getRole();
     if (role !== "GM") return;
 
-    const res = await fetch(BASE_URL + "/modulos.json");
+    const res = await fetch(resolverRota("/modulos.json"));
     const modulos = await res.json();
     let fichas = JSON.parse(localStorage.getItem("solaria_fichas_custom") || "[]");
 
@@ -83,7 +81,7 @@ async function inicializarHudsAoCarregarCena() {
 OBR.onReady(async () => {
   const currentRole = await OBR.player.getRole();
 
-  // Mantém o localStorage dos jogadores sempre sincronizado com os metadados da sala em segundo plano
+  // Mantém o armazenamento de fichas e notas sincronizado com a sala em segundo plano
   SolariaSync.iniciarOuvinteSala({
     onFichasRecebidas: (fichasPublicas) => {
       if (currentRole !== "GM") {
@@ -97,7 +95,6 @@ OBR.onReady(async () => {
     }
   });
 
-  // Corrige o estado caso o usuário feche o painel de combate pelo botão "X" interno
   OBR.broadcast.onMessage("solaria/combate-fechado", () => {
     combateAberto = false;
   });
@@ -141,6 +138,7 @@ OBR.onReady(async () => {
 
   configurarInterfaceNuvem();
 
+  // Limpeza de Cache Local
   const btnLimparCache = document.getElementById("btn-limpar-cache");
   const cacheStatus = document.getElementById("cache-status");
   if (btnLimparCache) {
@@ -161,6 +159,7 @@ OBR.onReady(async () => {
     });
   }
 
+  // Reset de Sala (Owlbear Room Metadata e HUDs)
   const btnLimparSala = document.getElementById("btn-limpar-sala");
   if (btnLimparSala) {
     btnLimparSala.addEventListener("click", async () => {
@@ -217,7 +216,7 @@ OBR.onReady(async () => {
     }
   });
 
-  // Ouvintes Globais em Segundo Plano
+  // Ouvintes de Sincronização em Segundo Plano
   OBR.broadcast.onMessage("solaria/ficha-sync", async (e) => {
     const fichaAtualizada = e.data;
     if (!fichaAtualizada || !fichaAtualizada.id) return;
@@ -299,6 +298,7 @@ OBR.onReady(async () => {
     }
   });
 
+  // Interação de Clique nos Tokens no Mapa
   OBR.player.onChange(async (player) => {
     const selection = player.selection;
     if (!selection || selection.length !== 1) return;
@@ -337,7 +337,7 @@ OBR.onReady(async () => {
 
         await OBR.popover.open({
           id: ID_QUICK_STAT,
-          url: BASE_URL + `/painel/fichas/quick-stat.html?${query}`,
+          url: resolverRota(`/painel/fichas/quick-stat.html?${query}`),
           width: 210,
           height: 115,
           anchorElementId: item.id,

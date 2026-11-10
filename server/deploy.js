@@ -4,6 +4,58 @@ const readline = require("readline");
 const { execSync } = require("child_process");
 const { sincronizarModulosJson, gerarProjetoCompleto } = require("./builder");
 
+const GITHUB_PAGES_MANIFEST = "https://nicolasarths.github.io/solaria-companion/manifest.json";
+
+/**
+ * Consulta periodicamente o GitHub Pages até a versão alvo estar disponível
+ */
+async function aguardarDeployGitHubPages(versaoAlvo) {
+  console.log(`\n📡 [Monitor Pages] Monitorando build no GitHub Pages...`);
+  console.log(`🎯 Aguardando versão remota: v${versaoAlvo}\n`);
+
+  const intervaloMs = 6000;
+  const maxTentativas = 40; // 4 minutos de limite
+  let tentativas = 0;
+  const inicio = Date.now();
+
+  const checar = setInterval(async () => {
+    tentativas++;
+    const decorridoSegundos = Math.round((Date.now() - inicio) / 1000);
+
+    try {
+      // Força o CDN do GitHub Pages a entregar dados frescos sem cache
+      const res = await fetch(`${GITHUB_PAGES_MANIFEST}?_t=${Date.now()}`, {
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Pragma": "no-cache"
+        }
+      });
+
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        
+        if (json.version === versaoAlvo) {
+          clearInterval(checar);
+          process.stdout.write("\x07"); // Emite aviso sonoro (beep) no terminal se suportado
+          console.log(`\n==================================================`);
+          console.log(`🎉 [GITHUB PAGES NO AR!] (levou ${decorridoSegundos}s)`);
+          console.log(`🚀 A versão v${versaoAlvo} já está ativa para todos os jogadores!`);
+          console.log(`==================================================\n`);
+          return;
+        }
+      }
+    } catch (_) {}
+
+    process.stdout.write(`⏳ Compilando no GitHub... (${decorridoSegundos}s decorridos) \r`);
+
+    if (tentativas >= maxTentativas) {
+      clearInterval(checar);
+      console.log(`\n⚠️ [Aviso] Tempo limite de checagem excedido (4 min).`);
+      console.log(`Confira o status da Action em: https://github.com/nicolasarths/solaria-companion/actions\n`);
+    }
+  }, intervaloMs);
+}
+
 function publicarAtualizacao(mensagemCommit, rootDir) {
   const agora = new Date();
   const timestampVersao = `${agora.getFullYear()}.${agora.getMonth() + 1}.${agora.getDate()}-${agora.getHours()}${agora.getMinutes()}`;
@@ -47,8 +99,11 @@ function publicarAtualizacao(mensagemCommit, rootDir) {
     console.log(`🚀 Executando git push origin main ...`);
     execSync("git push", { stdio: "inherit", cwd: rootDir });
 
-    console.log(`\n🎉 [DEPLOY CONCLUÍDO COM SUCESSO!]`);
-    console.log(`👉 A versão v${timestampVersao} estará disponível no GitHub Pages em instantes.\n`);
+    console.log(`✅ Push enviado ao GitHub.`);
+
+    // 5. Inicia o monitoramento automático do Pages em segundo plano
+    aguardarDeployGitHubPages(timestampVersao);
+
   } catch (err) {
     console.error(`\n❌ Falha durante o deploy do Git:`, err.message);
   }

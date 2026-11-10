@@ -1401,6 +1401,208 @@ export const WindowManager = {
   }
 };
 
+=== ARQUIVO: \index.css ===
+body {
+  background-color: #1a1b26;
+  color: #c0caf5;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 16px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100vh;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.btn-main {
+  background-color: #9d7cd8;
+  color: #ffffff;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  width: 100%;
+}
+.btn-main:hover {
+  background-color: #b193e6;
+}
+
+.btn-danger {
+  background-color: #f7768e;
+  color: #ffffff;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  width: 100%;
+  margin-top: auto;
+}
+.btn-danger:hover {
+  background-color: #f55373;
+}
+
+.config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #24283b;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.config-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #7982a9;
+  letter-spacing: 0.5px;
+}
+
+.cloud-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cloud-field label {
+  font-size: 11px;
+  color: #a9b1d6;
+  font-weight: 600;
+}
+
+.cloud-input {
+  background: #16161e;
+  border: 1px solid #3b4261;
+  color: #c0caf5;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.cloud-input:focus {
+  border-color: #7aa2f7;
+}
+
+.cloud-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-cloud {
+  flex: 1;
+  padding: 8px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, background-color 0.2s;
+  border: none;
+}
+
+.btn-cloud-save {
+  background: #7aa2f7;
+  color: #14161f;
+}
+.btn-cloud-save:hover {
+  opacity: 0.9;
+}
+
+.btn-cloud-load {
+  background: #1f2335;
+  color: #c0caf5;
+  border: 1px solid #3b4261;
+}
+.btn-cloud-load:hover {
+  background: #2f354d;
+}
+
+.cloud-status {
+  font-size: 10px;
+  text-align: center;
+  min-height: 14px;
+  color: #7982a9;
+}
+
+.cache-desc {
+  font-size: 11px;
+  color: #7982a9;
+  line-height: 1.4;
+}
+
+.btn-limpar-cache {
+  background: rgba(247, 118, 142, 0.15);
+  color: #f7768e;
+  border: 1px solid rgba(247, 118, 142, 0.4);
+}
+
+.btn-limpar-sala {
+  background: #1f2335;
+  color: #e0af68;
+  border: 1px solid rgba(224, 175, 104, 0.4);
+}
+
+/* Switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #414868;
+  transition: 0.3s;
+  border-radius: 20px;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #73daca;
+}
+input:checked + .slider:before {
+  transform: translateX(16px);
+}
+
 === ARQUIVO: \index.html ===
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -1408,7 +1610,7 @@ export const WindowManager = {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Solaria Companion</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./index.css">
 </head>
 <body>
 
@@ -1455,14 +1657,14 @@ export const WindowManager = {
 
   <div class="config-section">
     <span class="section-title">🧹 Cache & Armazenamento</span>
-    <div style="font-size: 11px; color: #7982a9; line-height: 1.4;">
+    <div class="cache-desc">
       Evita conflitos entre o ambiente local (Dev) e o online (Prod).
     </div>
     <div class="cloud-btn-row">
-      <button type="button" id="btn-limpar-cache" class="btn-cloud" style="background: rgba(247, 118, 142, 0.15); color: #f7768e; border: 1px solid rgba(247, 118, 142, 0.4);">
+      <button type="button" id="btn-limpar-cache" class="btn-cloud btn-limpar-cache">
         🗑️ Limpar Cache Local
       </button>
-      <button type="button" id="btn-limpar-sala" class="btn-cloud" style="background: #1f2335; color: #e0af68; border: 1px solid rgba(224, 175, 104, 0.4);">
+      <button type="button" id="btn-limpar-sala" class="btn-cloud btn-limpar-sala">
         🧹 Resetar Sala
       </button>
     </div>
@@ -1471,7 +1673,7 @@ export const WindowManager = {
 
   <button type="button" id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>
 
-  <script type="module" src="./main.js?v=2026.11.9-2234"></script>
+  <script type="module" src="./main.js?v=2026.11.9-234"></script>
 </body>
 </html>
 
@@ -1831,7 +2033,7 @@ OBR.onReady(async () => {
 {
   "manifest_version": 1,
   "name": "Solaria Companion",
-  "version": "2026.11.9-2234",
+  "version": "2026.11.9-234",
   "description": "Extensão para Solaria no Owlbear Rodeo",
   "author": "Nicolas Arths",
   "icon": "/solaria-companion/favicon.svg",
@@ -3789,86 +3991,99 @@ export function iniciarOuvintesOwlbear(onFocarFicha, onCriarFicha) {
   });
 }
 
+=== ARQUIVO: \painel\fichas\quick-stat.css ===
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 10px 12px;
+  background: #14161f;
+  color: #c0caf5;
+  font-family: system-ui, -apple-system, sans-serif;
+  border: 2px solid var(--cor-borda, #7aa2f7);
+  border-radius: 8px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.stat-badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--cor-borda, #7aa2f7);
+}
+
+.inputs-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.field-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.field-group label {
+  font-size: 9px;
+  color: #6b739c;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+input {
+  width: 100%;
+  background: #10121a;
+  color: #fff;
+  border: 1px solid #3b4261;
+  border-radius: 4px;
+  padding: 5px 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+
+input:focus {
+  border-color: var(--cor-borda, #7aa2f7);
+}
+
+.slash {
+  font-size: 16px;
+  font-weight: bold;
+  color: #414868;
+  margin-top: 12px;
+}
+
+.hint {
+  font-size: 9px;
+  color: #6b739c;
+  text-align: center;
+}
+
 === ARQUIVO: \painel\fichas\quick-stat.html ===
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 10px 12px;
-      background: #14161f;
-      color: #c0caf5;
-      font-family: system-ui, -apple-system, sans-serif;
-      border: 2px solid var(--cor-borda, #7aa2f7);
-      border-radius: 8px;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      overflow: hidden;
-    }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 11px;
-      font-weight: 700;
-      color: #fff;
-    }
-    .stat-badge {
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: rgba(255,255,255,0.08);
-      color: var(--cor-borda, #7aa2f7);
-    }
-    .inputs-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin: 6px 0;
-    }
-    .field-group {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .field-group label {
-      font-size: 9px;
-      color: #6b739c;
-      text-transform: uppercase;
-      font-weight: 700;
-    }
-    input {
-      width: 100%;
-      background: #10121a;
-      color: #fff;
-      border: 1px solid #3b4261;
-      border-radius: 4px;
-      padding: 5px 6px;
-      font-size: 13px;
-      font-weight: 700;
-      text-align: center;
-      outline: none;
-    }
-    input:focus {
-      border-color: var(--cor-borda, #7aa2f7);
-    }
-    .slash {
-      font-size: 16px;
-      font-weight: bold;
-      color: #414868;
-      margin-top: 12px;
-    }
-    .hint {
-      font-size: 9px;
-      color: #6b739c;
-      text-align: center;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Stat</title>
+  <link rel="stylesheet" href="./quick-stat.css">
 </head>
 <body>
   <div class="header">
@@ -4923,204 +5138,216 @@ export async function sincronizarTodosHuds(fichas = []) {
   } catch (_) {}
 }
 
+=== ARQUIVO: \painel\painel.css ===
+:root {
+  --bg: #14161f;
+  --surface: #1e2233;
+  --border: #3b4261;
+  --accent: #7aa2f7;
+  --accent-gm: #bb9af7;
+  --danger: #f7768e;
+  --text: #c0caf5;
+  --text-muted: #6b739c;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+/* Alças de Redimensionamento */
+.resize-handle-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  z-index: 9999;
+}
+.resize-handle-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 9999;
+}
+.resize-handle-corner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+  z-index: 10000;
+}
+.resize-handle-corner::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  border-top: 2px solid var(--accent-gm);
+  border-left: 2px solid var(--accent-gm);
+  opacity: 0.5;
+}
+
+header {
+  background: var(--surface);
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  gap: 6px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.title { font-weight: bold; font-size: 13px; color: #fff; }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.role-badge {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+.role-gm { background: var(--accent-gm); color: #14161f; }
+.role-player { background: var(--accent); color: #14161f; }
+
+.btn-size-preset {
+  background: #14161f;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 3px 7px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.btn-size-preset:hover {
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-reset-sala {
+  color: var(--danger);
+  border-color: rgba(247, 118, 142, 0.4);
+  display: none;
+}
+
+/* Barra de Abas */
+.tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+.tab-btn.active {
+  color: #fff;
+  border-bottom-color: var(--accent-gm);
+  background: rgba(187, 154, 247, 0.08);
+}
+
+main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+.tab-content {
+  display: none;
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-direction: column;
+  gap: 10px;
+}
+.tab-content.active { display: flex; }
+
+input, select, textarea {
+  background: #10121a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  outline: none;
+  font-family: inherit;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+.btn-primary {
+  background: var(--accent-gm);
+  color: #14161f;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 === ARQUIVO: \painel\painel.html ===
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <style>
-    :root {
-      --bg: #14161f;
-      --surface: #1e2233;
-      --border: #3b4261;
-      --accent: #7aa2f7;
-      --accent-gm: #bb9af7;
-      --danger: #f7768e;
-      --text: #c0caf5;
-      --text-muted: #6b739c;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      background-color: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
-      border: 1px solid var(--border);
-      position: relative;
-    }
-
-    /* Alças de Redimensionamento */
-    .resize-handle-top {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 6px;
-      cursor: ns-resize;
-      z-index: 9999;
-    }
-    .resize-handle-left {
-      position: absolute;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 6px;
-      cursor: ew-resize;
-      z-index: 9999;
-    }
-    .resize-handle-corner {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 12px;
-      height: 12px;
-      cursor: nwse-resize;
-      z-index: 10000;
-    }
-    .resize-handle-corner::after {
-      content: "";
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 6px;
-      height: 6px;
-      border-top: 2px solid var(--accent-gm);
-      border-left: 2px solid var(--accent-gm);
-      opacity: 0.5;
-    }
-
-    header {
-      background: var(--surface);
-      padding: 8px 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--border);
-      user-select: none;
-      gap: 6px;
-    }
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .title { font-weight: bold; font-size: 13px; color: #fff; }
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .role-badge {
-      font-size: 10px;
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-weight: bold;
-      cursor: pointer;
-      user-select: none;
-    }
-    .role-gm { background: var(--accent-gm); color: #14161f; }
-    .role-player { background: var(--accent); color: #14161f; }
-
-    .btn-size-preset {
-      background: #14161f;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      border-radius: 4px;
-      font-size: 11px;
-      padding: 3px 7px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      transition: color 0.15s, border-color 0.15s;
-    }
-    .btn-size-preset:hover {
-      color: #fff;
-      border-color: var(--accent);
-    }
-
-    /* Barra de Abas */
-    .tabs {
-      display: flex;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      overflow-x: auto;
-    }
-    .tab-btn {
-      flex: 1;
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      padding: 8px 10px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      text-transform: capitalize;
-      white-space: nowrap;
-    }
-    .tab-btn.active {
-      color: #fff;
-      border-bottom-color: var(--accent-gm);
-      background: rgba(187, 154, 247, 0.08);
-    }
-
-    main {
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-      position: relative;
-    }
-    .tab-content {
-      display: none;
-      flex: 1;
-      padding: 10px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .tab-content.active { display: flex; }
-
-    input, select, textarea {
-      background: #10121a;
-      color: var(--text);
-      border: 1px solid var(--border);
-      padding: 6px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      outline: none;
-      font-family: inherit;
-    }
-    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
-    .btn-primary {
-      background: var(--accent-gm);
-      color: #14161f;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-weight: bold;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .btn-secondary {
-      background: var(--surface);
-      color: var(--text);
-      border: 1px solid var(--border);
-      padding: 6px 10px;
-      border-radius: 4px;
-      font-size: 12px;
-      cursor: pointer;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solaria Companion - Painel</title>
+  <link rel="stylesheet" href="./painel.css">
 </head>
 <body>
+  <!-- Alças de Redimensionamento -->
   <div id="resize-top" class="resize-handle-top" title="Arraste para redimensionar verticalmente"></div>
   <div id="resize-left" class="resize-handle-left" title="Arraste para redimensionar horizontalmente"></div>
   <div id="resize-corner" class="resize-handle-corner" title="Arraste o canto para redimensionar"></div>
@@ -5131,9 +5358,8 @@ export async function sincronizarTodosHuds(fichas = []) {
       <button id="btn-toggle-size" class="btn-size-preset" title="Alternar Tamanho Predefinido">📐 Médio</button>
     </div>
     <div class="header-actions">
-      <!-- Botões de limpeza de armazenamento presentes no cabeçalho do painel -->
       <button id="btn-limpar-cache-painel" class="btn-size-preset" title="Limpar Cache Local deste navegador e recarregar">🧹 Cache</button>
-      <button id="btn-reset-sala-painel" class="btn-size-preset" style="color:var(--danger); border-color:rgba(247,118,142,0.4); display:none;" title="Zerar Fichas e Notas da SALA do Owlbear (Apenas GM)">🗑️ Sala</button>
+      <button id="btn-reset-sala-painel" class="btn-size-preset btn-reset-sala" title="Zerar Fichas e Notas da SALA do Owlbear (Apenas GM)">🗑️ Sala</button>
       <span id="role-badge" class="role-badge role-gm">Visão: Mestre (GM)</span>
     </div>
   </header>
@@ -5904,190 +6130,6 @@ module.exports = { iniciarWatcher };
 
 === ARQUIVO: \server.js ===
 require("./server/index.js");
-
-=== ARQUIVO: \style.css ===
-body {
-  background-color: #1a1b26;
-  color: #c0caf5;
-  font-family: system-ui, -apple-system, sans-serif;
-  padding: 16px;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 100vh;
-  box-sizing: border-box;
-  overflow-y: auto;
-}
-
-.btn-main {
-  background-color: #9d7cd8;
-  color: #ffffff;
-  border: none;
-  padding: 12px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  width: 100%;
-}
-.btn-main:hover {
-  background-color: #b193e6;
-}
-
-.btn-danger {
-  background-color: #f7768e;
-  color: #ffffff;
-  border: none;
-  padding: 12px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  width: 100%;
-  margin-top: auto;
-}
-.btn-danger:hover {
-  background-color: #f55373;
-}
-
-.config-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: #24283b;
-  padding: 12px;
-  border-radius: 8px;
-}
-
-.config-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.section-title {
-  font-size: 11px;
-  text-transform: uppercase;
-  font-weight: 700;
-  color: #7982a9;
-  letter-spacing: 0.5px;
-}
-
-.cloud-field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.cloud-field label {
-  font-size: 11px;
-  color: #a9b1d6;
-  font-weight: 600;
-}
-
-.cloud-input {
-  background: #16161e;
-  border: 1px solid #3b4261;
-  color: #c0caf5;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.cloud-input:focus {
-  border-color: #7aa2f7;
-}
-
-.cloud-btn-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.btn-cloud {
-  flex: 1;
-  padding: 8px 6px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.2s, background-color 0.2s;
-  border: none;
-}
-
-.btn-cloud-save {
-  background: #7aa2f7;
-  color: #14161f;
-}
-.btn-cloud-save:hover {
-  opacity: 0.9;
-}
-
-.btn-cloud-load {
-  background: #1f2335;
-  color: #c0caf5;
-  border: 1px solid #3b4261;
-}
-.btn-cloud-load:hover {
-  background: #2f354d;
-}
-
-.cloud-status {
-  font-size: 10px;
-  text-align: center;
-  min-height: 14px;
-  color: #7982a9;
-}
-
-/* Switch */
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 36px;
-  height: 20px;
-}
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #414868;
-  transition: 0.3s;
-  border-radius: 20px;
-}
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 14px;
-  width: 14px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: 0.3s;
-  border-radius: 50%;
-}
-
-input:checked + .slider {
-  background-color: #73daca;
-}
-input:checked + .slider:before {
-  transform: translateX(16px);
-}
 
 === ARQUIVO: \ui\rich-editor.js ===
 /**

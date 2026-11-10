@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Solaria Companion</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./index.css">
 </head>
 <body>
 
@@ -51,14 +51,14 @@
 
   <div class="config-section">
     <span class="section-title">🧹 Cache & Armazenamento</span>
-    <div style="font-size: 11px; color: #7982a9; line-height: 1.4;">
+    <div class="cache-desc">
       Evita conflitos entre o ambiente local (Dev) e o online (Prod).
     </div>
     <div class="cloud-btn-row">
-      <button type="button" id="btn-limpar-cache" class="btn-cloud" style="background: rgba(247, 118, 142, 0.15); color: #f7768e; border: 1px solid rgba(247, 118, 142, 0.4);">
+      <button type="button" id="btn-limpar-cache" class="btn-cloud btn-limpar-cache">
         🗑️ Limpar Cache Local
       </button>
-      <button type="button" id="btn-limpar-sala" class="btn-cloud" style="background: #1f2335; color: #e0af68; border: 1px solid rgba(224, 175, 104, 0.4);">
+      <button type="button" id="btn-limpar-sala" class="btn-cloud btn-limpar-sala">
         🧹 Resetar Sala
       </button>
     </div>
@@ -67,6 +67,6 @@
 
   <button type="button" id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>
 
-  <script type="module" src="./main.js?v=2026.11.9-2234"></script>
+  <script type="module" src="./main.js?v=2026.11.9-234"></script>
 </body>
 </html>

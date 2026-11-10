@@ -138,6 +138,24 @@ body {
   color: #7982a9;
 }
 
+.cache-desc {
+  font-size: 11px;
+  color: #7982a9;
+  line-height: 1.4;
+}
+
+.btn-limpar-cache {
+  background: rgba(247, 118, 142, 0.15);
+  color: #f7768e;
+  border: 1px solid rgba(247, 118, 142, 0.4);
+}
+
+.btn-limpar-sala {
+  background: #1f2335;
+  color: #e0af68;
+  border: 1px solid rgba(224, 175, 104, 0.4);
+}
+
 /* Switch */
 .switch {
   position: relative;

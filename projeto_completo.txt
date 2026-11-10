@@ -1673,7 +1673,7 @@ input:checked + .slider:before {
 
   <button type="button" id="btn-combate" class="btn-danger">⚔️ Iniciar Combate</button>
 
-  <script type="module" src="./main.js?v=2026.11.10-231"></script>
+  <script type="module" src="./main.js?v=2026.11.10-237"></script>
 </body>
 </html>
 
@@ -1807,7 +1807,7 @@ OBR.onReady(async () => {
 {
   "manifest_version": 1,
   "name": "Solaria Companion",
-  "version": "2026.11.10-231",
+  "version": "2026.11.10-237",
   "description": "Extensão para Solaria no Owlbear Rodeo",
   "author": "Nicolas Arths",
   "icon": "/solaria-companion/favicon.svg",
@@ -2981,6 +2981,89 @@ export const NotesStore = {
   color: #565f89;
   padding: 6px 8px;
   text-align: center;
+}
+
+=== ARQUIVO: \painel\estado.js ===
+import { SolariaSync } from "../core/sync.js";
+import { SheetStore } from "./fichas/store.js";
+import { NotesStore } from "./anotacoes/notes-store.js";
+
+export const Estado = {
+  realRole: "PLAYER",
+  viewRole: "PLAYER",
+  get role() {
+    return this.viewRole;
+  },
+  set role(val) {
+    this.viewRole = val;
+  },
+  abaAtiva: localStorage.getItem("solaria_aba_ativa") || null,
+  modulos: {},
+  dimensoes: JSON.parse(localStorage.getItem("solaria_painel_dimensoes") || '{"width":480,"height":680}'),
+  irParaCard(aba, idCard) {
+    const btn = document.querySelector(`[data-tab="${aba}"]`);
+    if (btn) btn.click();
+    setTimeout(() => {
+      const card = document.getElementById(`card-${idCard}`);
+      if (card) {
+        card.classList.add("open");
+        card.classList.add("is-open");
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 50);
+  }
+};
+
+let callbackRecarregarPainel = null;
+
+export function registrarCallbackRecarregar(cb) {
+  callbackRecarregarPainel = cb;
+}
+
+export function definirVisualizacao(role) {
+  if (Estado.realRole !== "GM") {
+    Estado.viewRole = "PLAYER";
+  } else {
+    Estado.viewRole = role;
+  }
+
+  const btnResetSala = document.getElementById("btn-reset-sala-painel");
+  if (btnResetSala) {
+    btnResetSala.style.display = Estado.realRole === "GM" ? "flex" : "none";
+  }
+
+  const badge = document.getElementById("role-badge");
+  if (badge) {
+    if (Estado.realRole !== "GM") {
+      badge.textContent = "Visão: Jogador";
+      badge.className = "role-badge role-player";
+      badge.style.cursor = "default";
+      badge.style.pointerEvents = "none";
+      badge.title = "";
+    } else {
+      badge.textContent = Estado.viewRole === "GM" ? "Visão: Mestre (GM)" : "Visão: Jogador";
+      badge.className = `role-badge ${Estado.viewRole === "GM" ? "role-gm" : "role-player"}`;
+      badge.style.cursor = "pointer";
+      badge.style.pointerEvents = "auto";
+      badge.title = "Clique para alternar modo de teste (Mestre / Jogador)";
+    }
+  }
+
+  if (typeof callbackRecarregarPainel === "function") {
+    callbackRecarregarPainel();
+  }
+}
+
+export function configurarCargos(realRole) {
+  Estado.realRole = realRole;
+  definirVisualizacao(realRole);
+
+  if (realRole === "GM") {
+    SheetStore.carregar();
+    NotesStore.carregar();
+    SolariaSync.sincronizarFichasComSala(SheetStore.fichas);
+    SolariaSync.sincronizarNotasComSala(NotesStore.notas);
+  }
 }
 
 === ARQUIVO: \painel\fichas\calc.js ===
@@ -5148,156 +5231,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 
 === ARQUIVO: \painel\painel.js ===
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { SolariaSync } from "../core/sync.js";
-import { SheetStore } from "./fichas/store.js";
-import { NotesStore } from "./anotacoes/notes-store.js";
+import { Estado, configurarCargos, definirVisualizacao, registrarCallbackRecarregar } from "./estado.js";
+import { configurarArrasto } from "./painel-resize.js";
 import { METADATA_HUD_KEY, METADATA_BTN_FICHA_KEY } from "./fichas/token-hud.js";
-
-const ID_PAINEL = "solaria-painel-inferior-direito";
-
-export const Estado = {
-  realRole: "PLAYER",
-  viewRole: "PLAYER",
-  get role() {
-    return this.viewRole;
-  },
-  set role(val) {
-    this.viewRole = val;
-  },
-  abaAtiva: localStorage.getItem("solaria_aba_ativa") || null,
-  modulos: {},
-  dimensoes: JSON.parse(localStorage.getItem("solaria_painel_dimensoes") || '{"width":480,"height":680}'),
-  irParaCard(aba, idCard) {
-    const btn = document.querySelector(`[data-tab="${aba}"]`);
-    if (btn) btn.click();
-    setTimeout(() => {
-      const card = document.getElementById(`card-${idCard}`);
-      if (card) {
-        card.classList.add("open");
-        card.classList.add("is-open");
-        card.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }, 50);
-  }
-};
-
-export async function aplicarDimensoes(largura, altura) {
-  const w = Math.max(340, Math.min(largura, window.screen.width - 40));
-  const h = Math.max(400, Math.min(altura, window.screen.height - 100));
-
-  Estado.dimensoes = { width: w, height: h };
-  localStorage.setItem("solaria_painel_dimensoes", JSON.stringify(Estado.dimensoes));
-
-  try {
-    await OBR.popover.setWidth(ID_PAINEL, Math.round(w));
-    await OBR.popover.setHeight(ID_PAINEL, Math.round(h));
-  } catch (_) {}
-}
-
-function configurarArrasto() {
-  const elTop = document.getElementById("resize-top");
-  const elLeft = document.getElementById("resize-left");
-  const elCorner = document.getElementById("resize-corner");
-
-  function iniciarRedimensionamento(e, redimensionaW, redimensionaH) {
-    e.preventDefault();
-    const startX = e.screenX;
-    const startY = e.screenY;
-    const startW = Estado.dimensoes.width;
-    const startH = Estado.dimensoes.height;
-
-    const onPointerMove = (ev) => {
-      let novoW = startW;
-      let novoH = startH;
-
-      if (redimensionaW) {
-        novoW = startW + (startX - ev.screenX);
-      }
-      if (redimensionaH) {
-        novoH = startH + (startY - ev.screenY);
-      }
-
-      aplicarDimensoes(novoW, novoH);
-    };
-
-    const onPointerUp = () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-  }
-
-  elTop?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, false, true));
-  elLeft?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, true, false));
-  elCorner?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, true, true));
-
-  const btnPreset = document.getElementById("btn-toggle-size");
-  const presets = [
-    { label: "📐 Médio", width: 480, height: 680 },
-    { label: "📐 Amplo", width: 660, height: 760 },
-    { label: "📐 Max", width: 860, height: 860 }
-  ];
-  let presetIdx = 0;
-
-  btnPreset?.addEventListener("click", () => {
-    presetIdx = (presetIdx + 1) % presets.length;
-    const p = presets[presetIdx];
-    btnPreset.textContent = p.label;
-    aplicarDimensoes(p.width, p.height);
-  });
-}
-
-function configurarBotoesCachePainel() {
-  const btnLimparCache = document.getElementById("btn-limpar-cache-painel");
-  const btnResetSala = document.getElementById("btn-reset-sala-painel");
-
-  if (btnLimparCache) {
-    btnLimparCache.addEventListener("click", () => {
-      const ok = window.confirm("Deseja apagar os dados locais do Solaria salvos neste navegador e recarregar?");
-      if (!ok) return;
-
-      Object.keys(localStorage)
-        .filter(k => k.startsWith("solaria_"))
-        .forEach(k => localStorage.removeItem(k));
-
-      try { OBR.notification.show("Armazenamento local limpo! 🧹"); } catch (_) {}
-      setTimeout(() => location.reload(), 300);
-    });
-  }
-
-  if (btnResetSala) {
-    btnResetSala.addEventListener("click", async () => {
-      const ok = window.confirm("ATENÇÃO: Deseja apagar todas as fichas e notas da SALA do Owlbear Rodeo? (Ação irreversível)");
-      if (!ok) return;
-
-      try {
-        const role = await OBR.player.getRole();
-        if (role !== "GM") {
-          alert("Apenas o Mestre pode resetar os dados da sala.");
-          return;
-        }
-
-        await OBR.room.setMetadata({
-          "solaria/sync_fichas": [],
-          "solaria/sync_notas": []
-        });
-
-        const itens = await OBR.scene.items.getItems();
-        const huds = itens.filter(i => i.metadata?.[METADATA_HUD_KEY] || i.metadata?.[METADATA_BTN_FICHA_KEY] || i.id.startsWith("solaria_hud_"));
-        if (huds.length > 0) {
-          await OBR.scene.items.deleteItems(huds.map(h => h.id));
-        }
-
-        try { OBR.notification.show("Sala do Owlbear e HUDs resetados! 🧹"); } catch (_) {}
-        setTimeout(() => location.reload(), 300);
-      } catch (err) {
-        alert("Erro ao resetar sala: " + err.message);
-      }
-    });
-  }
-}
 
 export async function carregarPainel() {
   const res = await fetch("../modulos.json");
@@ -5305,6 +5241,8 @@ export async function carregarPainel() {
 
   const tabsBar = document.getElementById("tabs-bar");
   const tabsContainer = document.getElementById("tabs-container");
+  if (!tabsBar || !tabsContainer) return;
+
   tabsBar.innerHTML = "";
   tabsContainer.innerHTML = "";
 
@@ -5381,53 +5319,64 @@ function renderizarListaPadrao(section, pasta, registros) {
   desenhar();
 }
 
-const badge = document.getElementById("role-badge");
-
-export function definirVisualizacao(role) {
-  if (Estado.realRole !== "GM") {
-    Estado.viewRole = "PLAYER";
-  } else {
-    Estado.viewRole = role;
-  }
-
+function configurarBotoesCachePainel() {
+  const btnLimparCache = document.getElementById("btn-limpar-cache-painel");
   const btnResetSala = document.getElementById("btn-reset-sala-painel");
+
+  if (btnLimparCache) {
+    btnLimparCache.addEventListener("click", () => {
+      const ok = window.confirm("Deseja apagar os dados locais do Solaria salvos neste navegador e recarregar?");
+      if (!ok) return;
+
+      Object.keys(localStorage)
+        .filter(k => k.startsWith("solaria_"))
+        .forEach(k => localStorage.removeItem(k));
+
+      try { OBR.notification.show("Armazenamento local limpo! 🧹"); } catch (_) {}
+      setTimeout(() => location.reload(), 300);
+    });
+  }
+
   if (btnResetSala) {
-    btnResetSala.style.display = Estado.realRole === "GM" ? "flex" : "none";
-  }
+    btnResetSala.addEventListener("click", async () => {
+      const ok = window.confirm("ATENÇÃO: Deseja apagar todas as fichas e notas da SALA do Owlbear Rodeo? (Ação irreversível)");
+      if (!ok) return;
 
-  if (badge) {
-    if (Estado.realRole !== "GM") {
-      badge.textContent = "Visão: Jogador";
-      badge.className = "role-badge role-player";
-      badge.style.cursor = "default";
-      badge.style.pointerEvents = "none";
-      badge.title = "";
-    } else {
-      badge.textContent = Estado.viewRole === "GM" ? "Visão: Mestre (GM)" : "Visão: Jogador";
-      badge.className = `role-badge ${Estado.viewRole === "GM" ? "role-gm" : "role-player"}`;
-      badge.style.cursor = "pointer";
-      badge.style.pointerEvents = "auto";
-      badge.title = "Clique para alternar modo de teste (Mestre / Jogador)";
-    }
-  }
+      try {
+        const role = await OBR.player.getRole();
+        if (role !== "GM") {
+          alert("Apenas o Mestre pode resetar os dados da sala.");
+          return;
+        }
 
-  carregarPainel();
+        await OBR.room.setMetadata({
+          "solaria/sync_fichas": [],
+          "solaria/sync_notas": []
+        });
+
+        const itens = await OBR.scene.items.getItems();
+        const huds = itens.filter(i => 
+          i.metadata?.[METADATA_HUD_KEY] || 
+          i.metadata?.[METADATA_BTN_FICHA_KEY] || 
+          i.id.startsWith("solaria_hud_")
+        );
+        if (huds.length > 0) {
+          await OBR.scene.items.deleteItems(huds.map(h => h.id));
+        }
+
+        try { OBR.notification.show("Sala do Owlbear e HUDs resetados! 🧹"); } catch (_) {}
+        setTimeout(() => location.reload(), 300);
+      } catch (err) {
+        alert("Erro ao resetar sala: " + err.message);
+      }
+    });
+  }
 }
 
-export function configurarCargos(realRole) {
-  Estado.realRole = realRole;
-  definirVisualizacao(realRole);
+// Conecta o recarregamento ao mudar de cargo (Mestre / Jogador)
+registrarCallbackRecarregar(() => carregarPainel());
 
-  if (realRole === "GM") {
-    SheetStore.carregar();
-    NotesStore.carregar();
-    SolariaSync.sincronizarFichasComSala(SheetStore.fichas);
-    SolariaSync.sincronizarNotasComSala(NotesStore.notas);
-  }
-}
-
-export const definirCargo = configurarCargos;
-
+const badge = document.getElementById("role-badge");
 if (badge) {
   badge.addEventListener("click", () => {
     if (Estado.realRole !== "GM") return;
@@ -5447,6 +5396,7 @@ OBR.onReady(async () => {
   }
 });
 
+// Fallback de teste local fora do iframe do Owlbear
 setTimeout(() => {
   if (!inicializado) {
     inicializado = true;
@@ -5456,6 +5406,80 @@ setTimeout(() => {
     configurarCargos(isStandalone ? "GM" : "PLAYER");
   }
 }, 500);
+
+=== ARQUIVO: \painel\resize.js ===
+import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import { Estado } from "./estado.js";
+
+const ID_PAINEL = "solaria-painel-inferior-direito";
+
+export async function aplicarDimensoes(largura, altura) {
+  const w = Math.max(340, Math.min(largura, window.screen.width - 40));
+  const h = Math.max(400, Math.min(altura, window.screen.height - 100));
+
+  Estado.dimensoes = { width: w, height: h };
+  localStorage.setItem("solaria_painel_dimensoes", JSON.stringify(Estado.dimensoes));
+
+  try {
+    await OBR.popover.setWidth(ID_PAINEL, Math.round(w));
+    await OBR.popover.setHeight(ID_PAINEL, Math.round(h));
+  } catch (_) {}
+}
+
+export function configurarArrasto() {
+  const elTop = document.getElementById("resize-top");
+  const elLeft = document.getElementById("resize-left");
+  const elCorner = document.getElementById("resize-corner");
+
+  function iniciarRedimensionamento(e, redimensionaW, redimensionaH) {
+    e.preventDefault();
+    const startX = e.screenX;
+    const startY = e.screenY;
+    const startW = Estado.dimensoes.width;
+    const startH = Estado.dimensoes.height;
+
+    const onPointerMove = (ev) => {
+      let novoW = startW;
+      let novoH = startH;
+
+      if (redimensionaW) {
+        novoW = startW + (startX - ev.screenX);
+      }
+      if (redimensionaH) {
+        novoH = startH + (startY - ev.screenY);
+      }
+
+      aplicarDimensoes(novoW, novoH);
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
+
+  elTop?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, false, true));
+  elLeft?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, true, false));
+  elCorner?.addEventListener("pointerdown", (e) => iniciarRedimensionamento(e, true, true));
+
+  const btnPreset = document.getElementById("btn-toggle-size");
+  const presets = [
+    { label: "📐 Médio", width: 480, height: 680 },
+    { label: "📐 Amplo", width: 660, height: 760 },
+    { label: "📐 Max", width: 860, height: 860 }
+  ];
+  let presetIdx = 0;
+
+  btnPreset?.addEventListener("click", () => {
+    presetIdx = (presetIdx + 1) % presets.length;
+    const p = presets[presetIdx];
+    btnPreset.textContent = p.label;
+    aplicarDimensoes(p.width, p.height);
+  });
+}
 
 === ARQUIVO: \server\builder.js ===
 const fs = require("fs");
